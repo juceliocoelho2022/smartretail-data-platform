@@ -1,49 +1,334 @@
 # Arquitetura — SmartRetail Data Platform
 
-## Visão geral
+> Documento técnico da arquitetura alvo. Os componentes serão implementados progressivamente conforme o roadmap.
 
-A plataforma será construída de forma incremental, com arquitetura orientada a eventos e pipelines de dados.
+<p align="center">
+  <img src="assets/smartretail-data-platform-architecture.svg" alt="Arquitetura SmartRetail Data Platform" width="100%">
+</p>
 
-### 1. Data Producers
-Fontes como Web, Mobile, PDV, APIs, logs e simuladores geram eventos de negócio.
+## 1. Objetivo arquitetural
 
-### 2. Ingestion Layer
-O backend em Java 21 + Spring Boot valida e publica eventos no Apache Kafka.
+Construir uma plataforma orientada a eventos capaz de:
 
-### 3. Event Streaming
-Kafka desacopla produtores e consumidores e suporta processamento assíncrono em escala.
+- receber dados de múltiplas fontes;
+- processar eventos em baixa latência;
+- manter histórico confiável em Data Lake/Lakehouse;
+- executar pipelines batch e streaming;
+- disponibilizar dados analíticos;
+- evoluir para casos de Machine Learning;
+- oferecer observabilidade ponta a ponta.
 
-Tópicos planejados:
-- customer-events
-- product-views
-- cart-events
-- orders
-- payments
-- inventory-events
-- shipping-events
+## 2. Princípios
 
-### 4. Stream Processing
-Spark Structured Streaming processa eventos em tempo real e calcula métricas operacionais.
+1. **Event-driven by design**
+2. **Idempotência**
+3. **Contratos versionados**
+4. **Separação entre workloads transacionais e analíticos**
+5. **Data Quality antes de Machine Learning**
+6. **Observabilidade by design**
+7. **Infraestrutura reproduzível**
+8. **Automação de testes**
+9. **Evolução incremental**
+10. **Segurança e governança como requisitos transversais**
 
-### 5. Data Lakehouse
-MinIO/S3 recebe dados crus e processados em camadas:
-- Bronze: dados brutos;
-- Silver: dados limpos e padronizados;
-- Gold: dados preparados para consumo.
+## 3. Camadas
 
-Apache Iceberg fornece camada de tabelas analíticas e evolução de schema.
+### 3.1 Producers
 
-### 6. Orchestration & Data Quality
-Apache Airflow orquestra jobs. PySpark executa transformações, validações, deduplicação e enriquecimento.
+Fontes previstas:
 
-### 7. Machine Learning
-MLflow acompanha experimentos e modelos para:
+- Web;
+- Mobile;
+- PDV;
+- APIs externas;
+- IoT;
+- logs de aplicações;
+- simuladores de carga.
+
+### 3.2 Ingestion Layer
+
+Tecnologia: **Java 21 + Spring Boot**.
+
+Responsabilidades:
+
+- validar entrada;
+- normalizar payload;
+- gerar metadados;
+- aplicar idempotência;
+- publicar eventos;
+- expor health checks;
+- gerar métricas e traces.
+
+### 3.3 Event Backbone
+
+Tecnologia: **Apache Kafka**.
+
+Responsabilidades:
+
+- desacoplar produtores e consumidores;
+- suportar processamento assíncrono;
+- particionar carga;
+- permitir replay;
+- organizar domínios em tópicos.
+
+Tópicos iniciais:
+
+```text
+customer-events
+product-views
+cart-events
+orders
+payments
+inventory-events
+shipping-events
+```
+
+### 3.4 Stream Processing
+
+Tecnologia: **Apache Spark Structured Streaming**.
+
+Casos previstos:
+
+- agregações por janela;
+- enriquecimento;
+- cálculo de KPIs;
+- detecção de eventos fora do padrão;
+- atualização de visões em tempo real.
+
+### 3.5 Lakehouse
+
+Tecnologias previstas:
+
+- MinIO / AWS S3;
+- Apache Iceberg;
+- Parquet.
+
+Camadas:
+
+```text
+Bronze -> Silver -> Gold
+```
+
+**Bronze:** preservação do dado original.  
+**Silver:** padronização, limpeza e enriquecimento.  
+**Gold:** dados analíticos e orientados ao negócio.
+
+### 3.6 Batch Processing
+
+Tecnologia: **PySpark**.
+
+Responsabilidades:
+
+- transformação;
+- deduplicação;
+- enriquecimento;
+- joins;
+- regras de qualidade;
+- geração de datasets Gold.
+
+### 3.7 Orchestration
+
+Tecnologia: **Apache Airflow**.
+
+Responsabilidades:
+
+- scheduling;
+- dependências;
+- retry;
+- SLA;
+- logs;
+- execução de DAGs;
+- monitoramento de pipelines.
+
+### 3.8 Machine Learning
+
+Tecnologias previstas:
+
+- MLlib;
+- MLflow.
+
+Casos iniciais:
+
 - previsão de demanda;
-- detecção de anomalias;
-- risco de ruptura de estoque.
+- risco de ruptura;
+- detecção de anomalias.
 
-### 8. Serving Layer
-PostgreSQL e APIs analíticas disponibilizam dados para o dashboard React.
+### 3.9 Serving Layer
 
-### 9. Observabilidade
-Prometheus, Grafana e OpenTelemetry fornecem métricas, traces e monitoramento da plataforma.
+Tecnologias:
+
+- PostgreSQL;
+- Spring Boot Analytics API;
+- React.
+
+Objetivo: disponibilizar dados consolidados sem expor diretamente o Lakehouse ao frontend.
+
+## 4. Fluxos
+
+### 4.1 Fluxo streaming
+
+```text
+Producer
+   -> Spring Boot
+   -> Kafka
+   -> Spark Structured Streaming
+   -> Real-time analytics
+   -> Serving Layer
+```
+
+### 4.2 Fluxo lakehouse
+
+```text
+Kafka / arquivos / APIs
+   -> Bronze
+   -> Silver
+   -> Gold
+   -> PostgreSQL / Analytics API
+```
+
+### 4.3 Fluxo de ML
+
+```text
+Gold datasets
+   -> Feature preparation
+   -> Training
+   -> MLflow
+   -> Model version
+   -> Prediction
+   -> Analytics
+```
+
+## 5. Contratos de eventos
+
+Todo evento deverá conter metadados mínimos:
+
+```json
+{
+  "eventId": "EVT-9821837",
+  "eventType": "ORDER_CREATED",
+  "eventVersion": 1,
+  "occurredAt": "2026-09-29T18:14:32Z",
+  "producer": "ingestion-api",
+  "correlationId": "COR-123456"
+}
+```
+
+Regras:
+
+- `eventId` único;
+- timestamps em UTC;
+- versionamento explícito;
+- correlation ID para rastreabilidade;
+- payload específico por domínio;
+- evolução compatível sempre que possível.
+
+## 6. Resiliência
+
+Padrões previstos:
+
+- retry controlado;
+- exponential backoff;
+- Dead Letter Topic;
+- idempotency key;
+- timeouts;
+- circuit breaker quando aplicável;
+- replay seguro;
+- consumer groups;
+- tratamento de poison messages.
+
+## 7. Data Quality
+
+Dimensões monitoradas:
+
+- completeness;
+- uniqueness;
+- validity;
+- consistency;
+- freshness.
+
+Falhas de qualidade deverão gerar métricas, logs e possibilidade de quarentena.
+
+## 8. Observabilidade
+
+### Métricas
+Prometheus.
+
+### Dashboards
+Grafana.
+
+### Tracing
+OpenTelemetry.
+
+### Correlação
+`traceId`, `correlationId` e `eventId`.
+
+Indicadores planejados:
+
+- throughput;
+- consumer lag;
+- erro por serviço;
+- latência;
+- duração de pipeline;
+- registros rejeitados;
+- freshness;
+- disponibilidade.
+
+## 9. Segurança
+
+Requisitos previstos:
+
+- secrets fora do repositório;
+- autenticação e autorização;
+- principle of least privilege;
+- mascaramento de dados sensíveis;
+- auditoria;
+- segregação de ambientes;
+- proteção de endpoints administrativos.
+
+## 10. Não funcionais
+
+Metas técnicas serão definidas conforme os componentes forem implementados.
+
+Categorias:
+
+- disponibilidade;
+- latência;
+- throughput;
+- escalabilidade;
+- recoverability;
+- observabilidade;
+- segurança;
+- manutenibilidade.
+
+## 11. Estratégia de testes
+
+```text
+Unit
+Integration
+Contract
+Kafka
+Data Quality
+Pipeline
+End-to-End
+```
+
+Ferramentas previstas:
+
+- JUnit 5;
+- Mockito;
+- MockMvc;
+- Testcontainers;
+- pytest.
+
+## 12. Evolução
+
+A arquitetura será implementada em seis releases:
+
+1. Event Platform
+2. Streaming Analytics
+3. Data Lakehouse
+4. Data Engineering
+5. Analytics
+6. AI
+
+Consulte [ROADMAP.md](ROADMAP.md) para o plano detalhado.
