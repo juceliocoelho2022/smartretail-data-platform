@@ -31,8 +31,81 @@ A proposta é demonstrar o ciclo completo do dado:
 
 O sistema será construído de forma incremental, priorizando decisões arquiteturais justificadas, qualidade de código, observabilidade e documentação.
 
-> **Status atual:** fase inicial da **v0.1 — Event Platform**.  
-> Os componentes apresentados abaixo representam a **arquitetura alvo** e serão incorporados por releases.
+> **Status atual:** **v0.1 — Event Platform implementada em código e validada pelo CI Maven.**  
+> Próximo passo: validação end-to-end via Docker Compose e evolução para streaming analytics.
+
+---
+
+
+## ✅ v0.1 — Event Platform
+
+A primeira fatia vertical executável da plataforma já contém:
+
+- **Java 21 + Spring Boot 3.5.5**
+- API REST para ingestão de eventos de pedidos
+- Bean Validation + **Problem Details**
+- **Idempotency-Key** na entrada
+- **Transactional Outbox** em PostgreSQL
+- publicação assíncrona para **Apache Kafka**
+- tópico `smartretail.orders.v1` com 3 partições
+- retry + **Dead Letter Topic**
+- consumer idempotente
+- projeção de pedidos em PostgreSQL
+- **Flyway** para versionamento do schema
+- **Actuator + Prometheus**
+- **Docker Compose**
+- testes automatizados com Spring Boot Test
+- **GitHub Actions** com Java 21 e `mvn verify`
+
+### Fluxo implementado
+
+~~~text
+HTTP POST
+   |
+   v
+Spring Boot API
+   |
+   +--> idempotency_record
+   |
+   +--> outbox_event
+            |
+            v
+      Outbox Publisher
+            |
+            v
+          Kafka
+            |
+            v
+   Idempotent Consumer
+      /           \
+     v             v
+processed_event  order_event_projection
+~~~
+
+### Subir o ambiente
+
+~~~bash
+docker compose up --build
+~~~
+
+### Publicar um evento
+
+~~~bash
+curl -X POST http://localhost:8080/api/v1/events/orders \
+  -H "Content-Type: application/json" \
+  -H "Idempotency-Key: demo-order-001" \
+  -d '{
+    "customerId": "CUS-81921",
+    "productId": "PROD-3321",
+    "quantity": 2,
+    "unitPrice": 249.90,
+    "channel": "WEB",
+    "location": "SAO_PAULO"
+  }'
+~~~
+
+Exemplos completos: [docs/API_EXAMPLES.md](docs/API_EXAMPLES.md)  
+Detalhes da implementação: [docs/V0.1_IMPLEMENTATION.md](docs/V0.1_IMPLEMENTATION.md)
 
 ---
 
@@ -646,9 +719,9 @@ O desenvolvimento deverá seguir os seguintes princípios:
 
 ## ▶️ Execução
 
-A execução completa via Docker Compose será disponibilizada durante a **v0.1**.
+A v0.1 já inclui Docker Compose para PostgreSQL, Kafka e a API de ingestão.
 
-Enquanto a implementação inicial está em construção, este repositório contém a documentação de arquitetura e o roadmap que orientarão as entregas.
+O pipeline Maven foi validado com sucesso no GitHub Actions. A validação end-to-end local com os containers é o próximo checkpoint antes da evolução para a v0.2.
 
 ---
 
