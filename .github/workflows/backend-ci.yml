@@ -29,3 +29,19 @@ jobs:
 
       - name: Verify
         run: mvn -B verify
+
+      - name: Upload project snapshot
+        uses: actions/upload-artifact@v4
+        with:
+          name: smartretail-data-platform-v0.1
+          if-no-files-found: error
+          retention-days: 14
+          path: |
+            README.md
+            LICENSE
+            .gitignore
+            .env.example
+            docker-compose.yml
+            backend/
+            docs/
+            .github/
