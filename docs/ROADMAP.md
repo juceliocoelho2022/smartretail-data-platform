@@ -1,15 +1,17 @@
 # Roadmap
 
 ## v0.1 — Event Platform
-- [ ] Spring Boot / Java 21
-- [ ] PostgreSQL
-- [ ] Apache Kafka
-- [ ] Docker Compose
-- [ ] Producer de eventos de pedidos
-- [ ] Consumer de eventos
-- [ ] Persistência
-- [ ] Testes automatizados
-- [ ] Actuator
+- [x] Spring Boot / Java 21
+- [x] PostgreSQL
+- [x] Apache Kafka
+- [x] Docker Compose
+- [x] Producer de eventos de pedidos via Transactional Outbox
+- [x] Consumer idempotente
+- [x] Persistência e projeção analítica inicial
+- [x] Testes automatizados
+- [x] Actuator + Prometheus
+- [x] GitHub Actions — Maven verify
+- [ ] Validação end-to-end local com containers
 
 ## v0.2 — Streaming Analytics
 - [ ] Apache Spark
