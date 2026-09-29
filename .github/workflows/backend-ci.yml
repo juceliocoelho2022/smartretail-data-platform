@@ -30,12 +30,13 @@ jobs:
       - name: Verify
         run: mvn -B verify
 
-      - name: Upload project snapshot
+      - name: Upload source snapshot
         uses: actions/upload-artifact@v4
         with:
-          name: smartretail-data-platform-v0.1
+          name: smartretail-data-platform-v0.1-source
           if-no-files-found: error
           retention-days: 14
+          include-hidden-files: true
           path: |
             README.md
             LICENSE
@@ -43,5 +44,7 @@ jobs:
             .env.example
             docker-compose.yml
             backend/
+            !backend/ingestion-api/target/**
             docs/
             .github/
+            !.git/**
