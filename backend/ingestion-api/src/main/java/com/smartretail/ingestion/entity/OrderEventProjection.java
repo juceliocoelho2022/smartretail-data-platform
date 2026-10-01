@@ -1,7 +1,10 @@
 package com.smartretail.ingestion.entity;
 
 import com.smartretail.ingestion.event.OrderCreatedEvent;
-import jakarta.persistence.*;
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.Id;
+import jakarta.persistence.Table;
 
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -12,7 +15,7 @@ import java.util.UUID;
 public class OrderEventProjection {
 
     @Id
-    @Column(name = "event_id")
+    @Column(name = "event_id", nullable = false)
     private UUID eventId;
 
     @Column(name = "customer_id", nullable = false, length = 80)
@@ -24,7 +27,12 @@ public class OrderEventProjection {
     @Column(nullable = false)
     private Integer quantity;
 
-    @Column(name = "unit_price", nullable = false, precision = 19, scale = 2)
+    @Column(
+            name = "unit_price",
+            nullable = false,
+            precision = 19,
+            scale = 2
+    )
     private BigDecimal unitPrice;
 
     @Column(nullable = false, length = 30)
@@ -42,7 +50,10 @@ public class OrderEventProjection {
     protected OrderEventProjection() {
     }
 
-    public OrderEventProjection(OrderCreatedEvent event, Instant processedAt) {
+    public OrderEventProjection(
+            OrderCreatedEvent event,
+            Instant processedAt
+    ) {
         this.eventId = event.eventId();
         this.customerId = event.customerId();
         this.productId = event.productId();
@@ -54,13 +65,39 @@ public class OrderEventProjection {
         this.processedAt = processedAt;
     }
 
-    public UUID getEventId() { return eventId; }
-    public String getCustomerId() { return customerId; }
-    public String getProductId() { return productId; }
-    public Integer getQuantity() { return quantity; }
-    public BigDecimal getUnitPrice() { return unitPrice; }
-    public String getChannel() { return channel; }
-    public String getLocation() { return location; }
-    public Instant getOccurredAt() { return occurredAt; }
-    public Instant getProcessedAt() { return processedAt; }
+    public UUID getEventId() {
+        return eventId;
+    }
+
+    public String getCustomerId() {
+        return customerId;
+    }
+
+    public String getProductId() {
+        return productId;
+    }
+
+    public Integer getQuantity() {
+        return quantity;
+    }
+
+    public BigDecimal getUnitPrice() {
+        return unitPrice;
+    }
+
+    public String getChannel() {
+        return channel;
+    }
+
+    public String getLocation() {
+        return location;
+    }
+
+    public Instant getOccurredAt() {
+        return occurredAt;
+    }
+
+    public Instant getProcessedAt() {
+        return processedAt;
+    }
 }

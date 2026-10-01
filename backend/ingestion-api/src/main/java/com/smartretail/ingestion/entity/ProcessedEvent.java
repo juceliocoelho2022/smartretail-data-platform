@@ -13,7 +13,7 @@ import java.util.UUID;
 public class ProcessedEvent {
 
     @Id
-    @Column(name = "event_id")
+    @Column(name = "event_id", nullable = false)
     private UUID eventId;
 
     @Column(name = "event_type", nullable = false, length = 100)
@@ -25,9 +25,25 @@ public class ProcessedEvent {
     protected ProcessedEvent() {
     }
 
-    public ProcessedEvent(UUID eventId, String eventType, Instant processedAt) {
+    public ProcessedEvent(
+            UUID eventId,
+            String eventType,
+            Instant processedAt
+    ) {
         this.eventId = eventId;
         this.eventType = eventType;
         this.processedAt = processedAt;
+    }
+
+    public UUID getEventId() {
+        return eventId;
+    }
+
+    public String getEventType() {
+        return eventType;
+    }
+
+    public Instant getProcessedAt() {
+        return processedAt;
     }
 }

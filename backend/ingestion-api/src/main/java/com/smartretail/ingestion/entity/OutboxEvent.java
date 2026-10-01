@@ -1,7 +1,6 @@
 package com.smartretail.ingestion.entity;
 
 import jakarta.persistence.*;
-
 import java.time.Instant;
 import java.util.UUID;
 
@@ -40,30 +39,28 @@ public class OutboxEvent {
     @Column(name = "published_at")
     private Instant publishedAt;
 
-    protected OutboxEvent() {
-    }
+    protected OutboxEvent() {}
 
-    public OutboxEvent(UUID id, String aggregateType, String aggregateId, String eventType,
-                       String payload, Instant createdAt) {
+    public OutboxEvent(UUID id, String aggregateType, String aggregateId,
+                       String eventType, String payload, Instant createdAt) {
         this.id = id;
         this.aggregateType = aggregateType;
         this.aggregateId = aggregateId;
         this.eventType = eventType;
         this.payload = payload;
         this.status = OutboxStatus.PENDING;
-        this.attempts = 0;
         this.createdAt = createdAt;
     }
 
     public void markPublished(Instant instant) {
-        this.status = OutboxStatus.PUBLISHED;
-        this.publishedAt = instant;
-        this.lastError = null;
+        status = OutboxStatus.PUBLISHED;
+        publishedAt = instant;
+        lastError = null;
     }
 
     public void markFailure(String error) {
-        this.attempts++;
-        this.lastError = error == null ? "unknown" : error.substring(0, Math.min(error.length(), 2000));
+        attempts++;
+        lastError = error == null ? "unknown" : error.substring(0, Math.min(error.length(), 2000));
     }
 
     public UUID getId() { return id; }

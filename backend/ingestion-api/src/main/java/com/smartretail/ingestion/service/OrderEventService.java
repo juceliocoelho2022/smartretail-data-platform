@@ -17,6 +17,9 @@ import java.util.UUID;
 @Service
 public class OrderEventService {
 
+    private static final String EVENT_TYPE = "ORDER_CREATED";
+    private static final String PRODUCER = "smartretail-ingestion-api";
+
     private final IdempotencyRecordRepository idempotencyRepository;
     private final OutboxEventRepository outboxRepository;
     private final ObjectMapper objectMapper;
@@ -32,12 +35,10 @@ public class OrderEventService {
     @Transactional
     public OrderEventAcceptance accept(OrderEventRequest request, String idempotencyKey) {
         var existing = idempotencyRepository.findById(idempotencyKey);
+
         if (existing.isPresent()) {
-            return new OrderEventAcceptance(
-                    existing.get().getEventId(),
-                    true,
-                    existing.get().getCreatedAt()
-            );
+            var record = existing.get();
+            return new OrderEventAcceptance(record.getEventId(), true, record.getCreatedAt());
         }
 
         Instant now = Instant.now();
@@ -45,10 +46,10 @@ public class OrderEventService {
 
         var event = new OrderCreatedEvent(
                 eventId,
-                "ORDER_CREATED",
+                EVENT_TYPE,
                 1,
                 now,
-                "ingestion-api",
+                PRODUCER,
                 UUID.randomUUID().toString(),
                 request.customerId(),
                 request.productId(),
@@ -59,11 +60,12 @@ public class OrderEventService {
         );
 
         idempotencyRepository.save(new IdempotencyRecord(idempotencyKey, eventId, now));
+
         outboxRepository.save(new OutboxEvent(
                 eventId,
                 "ORDER",
                 eventId.toString(),
-                event.eventType(),
+                EVENT_TYPE,
                 serialize(event),
                 now
         ));
@@ -74,8 +76,8 @@ public class OrderEventService {
     private String serialize(OrderCreatedEvent event) {
         try {
             return objectMapper.writeValueAsString(event);
-        } catch (JsonProcessingException ex) {
-            throw new IllegalStateException("Unable to serialize order event", ex);
+        } catch (JsonProcessingException e) {
+            throw new IllegalStateException("Unable to serialize order event", e);
         }
     }
 }
