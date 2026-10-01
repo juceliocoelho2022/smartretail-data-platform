@@ -51,3 +51,8 @@ Thumbs.db
 # Coverage
 coverage/
 htmlcov/
+
+# Spark Structured Streaming
+
+# Spark Structured Streaming checkpoints
+streaming/spark-streaming/checkpoints/

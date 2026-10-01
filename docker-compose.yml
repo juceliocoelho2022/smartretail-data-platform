@@ -53,5 +53,38 @@ services:
       kafka:
         condition: service_started
 
+  spark-streaming:
+    image: apache/spark:4.0.1-java21-python3
+    container_name: smartretail-spark-streaming
+
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      ORDERS_TOPIC: smartretail.orders.v1
+      SPARK_APP_NAME: smartretail-orders-streaming
+      CHECKPOINT_LOCATION: /opt/spark/work-dir/checkpoints/orders
+      PYSPARK_PYTHON: python3
+      PYSPARK_DRIVER_PYTHON: python3
+
+    volumes:
+      - ./streaming/spark-streaming/src:/opt/spark/work-dir/src:ro
+      - ./streaming/spark-streaming/checkpoints:/opt/spark/work-dir/checkpoints
+
+    ports:
+      - "4040:4040"
+
+    command:
+      - /opt/spark/bin/spark-submit
+      - --master
+      - local[*]
+      - --conf
+      - spark.jars.ivy=/tmp/.ivy2
+      - --packages
+      - org.apache.spark:spark-sql-kafka-0-10_2.13:4.0.1
+      - /opt/spark/work-dir/src/main/python/app.py
+
+    depends_on:
+      kafka:
+        condition: service_started
+
 volumes:
   smartretail-postgres-data:
