@@ -1,22 +1,21 @@
 # 🛒 SmartRetail Data Platform
 
 <p align="center">
-  <strong>Plataforma de Big Data e Inteligência Artificial para vendas, clientes e estoque em tempo real.</strong>
+  <strong>Plataforma orientada a eventos para varejo, construída com Java, Kafka, PostgreSQL e evolução planejada para Big Data, Lakehouse, Analytics e IA.</strong>
 </p>
 
 <p align="center">
-  Projeto de portfólio focado em <strong>Backend Java, Engenharia de Dados, Streaming, Lakehouse, Observabilidade e Machine Learning</strong>.
+  Projeto de portfólio focado em <strong>Backend Java, Engenharia de Dados, Event Streaming, Observabilidade e Machine Learning</strong>.
 </p>
 
 <p align="center">
   <img alt="Java 21" src="https://img.shields.io/badge/Java-21-ED8B00?logo=openjdk&logoColor=white">
-  <img alt="Spring Boot" src="https://img.shields.io/badge/Spring%20Boot-3.x-6DB33F?logo=springboot&logoColor=white">
-  <img alt="Apache Kafka" src="https://img.shields.io/badge/Apache%20Kafka-Event%20Streaming-231F20?logo=apachekafka&logoColor=white">
-  <img alt="Apache Spark" src="https://img.shields.io/badge/Apache%20Spark-Streaming-E25A1C?logo=apachespark&logoColor=white">
-  <img alt="Apache Airflow" src="https://img.shields.io/badge/Apache%20Airflow-Orchestration-017CEE?logo=apacheairflow&logoColor=white">
-  <img alt="PostgreSQL" src="https://img.shields.io/badge/PostgreSQL-Analytics-4169E1?logo=postgresql&logoColor=white">
-  <img alt="Docker" src="https://img.shields.io/badge/Docker-Containers-2496ED?logo=docker&logoColor=white">
-  <img alt="Status" src="https://img.shields.io/badge/status-em%20desenvolvimento-F59E0B">
+  <img alt="Spring Boot 3.5.5" src="https://img.shields.io/badge/Spring%20Boot-3.5.5-6DB33F?logo=springboot&logoColor=white">
+  <img alt="Apache Kafka 3.9.1" src="https://img.shields.io/badge/Apache%20Kafka-3.9.1-231F20?logo=apachekafka&logoColor=white">
+  <img alt="PostgreSQL 17" src="https://img.shields.io/badge/PostgreSQL-17-4169E1?logo=postgresql&logoColor=white">
+  <img alt="Docker" src="https://img.shields.io/badge/Docker-Compose-2496ED?logo=docker&logoColor=white">
+  <img alt="CI" src="https://github.com/juceliocoelho2022/smartretail-data-platform/actions/workflows/backend-ci.yml/badge.svg?branch=main">
+  <img alt="v0.1" src="https://img.shields.io/badge/v0.1-Event%20Platform%20conclu%C3%ADda-2EA44F">
 </p>
 
 ---
@@ -25,335 +24,411 @@
 
 O **SmartRetail Data Platform** é uma plataforma de dados orientada a eventos criada para simular um cenário realista de varejo digital e físico.
 
-A proposta é demonstrar o ciclo completo do dado:
+O objetivo é demonstrar, de forma incremental, o ciclo completo do dado:
 
 **geração → ingestão → streaming → processamento → armazenamento → qualidade → analytics → machine learning → consumo**
 
-O sistema será construído de forma incremental, priorizando decisões arquiteturais justificadas, qualidade de código, observabilidade e documentação.
+A primeira release funcional já implementa uma fatia vertical completa de ingestão e processamento assíncrono de pedidos.
 
-> **Status atual:** **v0.1 — Event Platform implementada em código e validada pelo CI Maven.**  
-> Próximo passo: validação end-to-end via Docker Compose e evolução para streaming analytics.
+> **Status atual:** ✅ **v0.1 — Event Platform concluída, validada localmente de ponta a ponta e aprovada pelo CI.**  
+> **Próxima etapa:** v0.2 — Spark Structured Streaming.
 
 ---
-
 
 ## ✅ v0.1 — Event Platform
 
-A primeira fatia vertical executável da plataforma já contém:
+A v0.1 implementa uma arquitetura orientada a eventos com consistência transacional, idempotência e processamento assíncrono.
 
-- **Java 21 + Spring Boot 3.5.5**
+### Tecnologias implementadas
+
+- **Java 21**
+- **Spring Boot 3.5.5**
+- Spring Web
+- Spring Validation
+- Spring Data JPA
+- Apache Kafka 3.9.1
+- PostgreSQL 17
+- Flyway
+- Spring Boot Actuator
+- Micrometer + Prometheus
+- Docker + Docker Compose
+- JUnit 5
+- Mockito
+- MockMvc
+- JaCoCo
+- GitHub Actions
+
+### Capacidades implementadas
+
 - API REST para ingestão de eventos de pedidos
-- Bean Validation + **Problem Details**
-- **Idempotency-Key** na entrada
-- **Transactional Outbox** em PostgreSQL
-- publicação assíncrona para **Apache Kafka**
-- tópico `smartretail.orders.v1` com 3 partições
-- retry + **Dead Letter Topic**
+- validação de payload
+- respostas HTTP com Problem Details
+- suporte a **Idempotency-Key**
+- persistência transacional de idempotência
+- **Transactional Outbox Pattern**
+- publicação assíncrona no Kafka
+- tópico `smartretail.orders.v1`
+- 3 partições
+- retry no consumo
+- Dead Letter Topic
 - consumer idempotente
+- controle de eventos já processados
 - projeção de pedidos em PostgreSQL
-- **Flyway** para versionamento do schema
-- **Actuator + Prometheus**
-- **Docker Compose**
-- testes automatizados com Spring Boot Test
-- **GitHub Actions** com Java 21 e `mvn verify`
-
-### Fluxo implementado
-
-~~~text
-HTTP POST
-   |
-   v
-Spring Boot API
-   |
-   +--> idempotency_record
-   |
-   +--> outbox_event
-            |
-            v
-      Outbox Publisher
-            |
-            v
-          Kafka
-            |
-            v
-   Idempotent Consumer
-      /           \
-     v             v
-processed_event  order_event_projection
-~~~
-
-### Subir o ambiente
-
-~~~bash
-docker compose up --build
-~~~
-
-### Publicar um evento
-
-~~~bash
-curl -X POST http://localhost:8080/api/v1/events/orders \
-  -H "Content-Type: application/json" \
-  -H "Idempotency-Key: demo-order-001" \
-  -d '{
-    "customerId": "CUS-81921",
-    "productId": "PROD-3321",
-    "quantity": 2,
-    "unitPrice": 249.90,
-    "channel": "WEB",
-    "location": "SAO_PAULO"
-  }'
-~~~
-
-Exemplos completos: [docs/API_EXAMPLES.md](docs/API_EXAMPLES.md)  
-Detalhes da implementação: [docs/V0.1_IMPLEMENTATION.md](docs/V0.1_IMPLEMENTATION.md)
+- migrations versionadas com Flyway
+- health checks
+- métricas Prometheus
+- testes automatizados
+- relatório de cobertura com JaCoCo
+- CI com Java 21 e Maven
 
 ---
 
-## 🏗️ Arquitetura da solução
+## 🔄 Fluxo validado de ponta a ponta
+
+```text
+POST /api/v1/events/orders
+          │
+          ▼
+   Spring Boot API
+          │
+          ├──► idempotency_record
+          │
+          └──► outbox_event
+                     │
+                     ▼
+              Outbox Publisher
+                     │
+                     ▼
+        smartretail.orders.v1
+                     │
+                     ▼
+           Kafka Consumer
+              │          │
+              ▼          ▼
+      processed_event   order_event_projection
+                              │
+                              ▼
+             GET /api/v1/events/orders/{eventId}
+```
+
+O fluxo foi validado localmente com:
+
+- criação de evento com HTTP `202 Accepted`;
+- repetição da chamada com o mesmo `Idempotency-Key`;
+- retorno do mesmo `eventId`;
+- indicação `replayed=true`;
+- publicação assíncrona no Kafka;
+- consumo do evento;
+- gravação da projeção;
+- consulta posterior via endpoint GET.
+
+---
+
+## 🧠 Decisões arquiteturais
+
+### Transactional Outbox
+
+A API não publica diretamente no Kafka dentro da transação HTTP.
+
+Em vez disso:
+
+```text
+Transação PostgreSQL
+├── idempotency_record
+└── outbox_event
+```
+
+Após o commit, o publisher lê o outbox e envia o evento ao Kafka.
+
+Essa abordagem reduz o risco de inconsistência entre banco e broker.
+
+### Idempotência na entrada
+
+Chamadas repetidas com o mesmo `Idempotency-Key` retornam o mesmo evento em vez de gerar pedidos duplicados.
+
+### Idempotência no consumer
+
+A tabela `processed_event` registra os eventos já processados e protege a projeção contra reprocessamento duplicado.
+
+### Retry + DLT
+
+Falhas de consumo utilizam retry e, após as tentativas configuradas, o evento pode ser encaminhado para:
+
+```text
+smartretail.orders.v1.DLT
+```
+
+### Limitação consciente da v0.1
+
+O polling do Transactional Outbox foi projetado para uma instância da aplicação.
+
+Para escala horizontal, a evolução deverá utilizar uma estratégia de claim/locking, como `FOR UPDATE SKIP LOCKED`, ou CDC com Debezium.
+
+---
+
+## 🚀 Execução local
+
+### Pré-requisitos
+
+```text
+Java 21
+Maven 3.9+
+Docker Desktop
+Docker Compose
+```
+
+### Clonar o projeto
+
+```bash
+git clone https://github.com/juceliocoelho2022/smartretail-data-platform.git
+cd smartretail-data-platform
+```
+
+### Subir PostgreSQL, Kafka e API
+
+```bash
+docker compose up --build
+```
+
+### Portas locais
+
+| Componente | Porta |
+|---|---:|
+| API Spring Boot | `8080` |
+| PostgreSQL | `5433` |
+| Kafka | `9092` |
+
+Dentro da rede Docker, o PostgreSQL continua disponível na porta interna `5432`.
+
+---
+
+## 📨 Criar evento de pedido
+
+```bash
+curl -i -X POST http://localhost:8080/api/v1/events/orders \
+  -H "Content-Type: application/json" \
+  -H "Idempotency-Key: demo-order-001" \
+  -d '{
+    "customerId": "CUST-001",
+    "productId": "PROD-001",
+    "quantity": 2,
+    "unitPrice": 149.90,
+    "channel": "WEB",
+    "location": "SAO_PAULO"
+  }'
+```
+
+Exemplo de resposta:
+
+```json
+{
+  "eventId": "21e31d5c-0c1a-41b5-9ff8-0772e44c8cfd",
+  "status": "ACCEPTED",
+  "replayed": false,
+  "acceptedAt": "2026-09-30T22:08:59Z"
+}
+```
+
+Repetindo a mesma chamada com o mesmo `Idempotency-Key`:
+
+```json
+{
+  "eventId": "21e31d5c-0c1a-41b5-9ff8-0772e44c8cfd",
+  "status": "ACCEPTED",
+  "replayed": true
+}
+```
+
+---
+
+## 🔎 Consultar projeção
+
+```bash
+curl http://localhost:8080/api/v1/events/orders/{eventId}
+```
+
+Exemplo:
+
+```json
+{
+  "eventId": "21e31d5c-0c1a-41b5-9ff8-0772e44c8cfd",
+  "customerId": "CUST-001",
+  "productId": "PROD-001",
+  "quantity": 2,
+  "unitPrice": 149.90,
+  "channel": "WEB",
+  "location": "SAO_PAULO",
+  "occurredAt": "2026-09-30T22:08:59Z",
+  "processedAt": "2026-09-30T22:09:00Z"
+}
+```
+
+Como o processamento é assíncrono, o GET pode retornar `404` por alguns instantes antes da projeção ser criada.
+
+---
+
+## ❤️ Health e métricas
+
+### Health
+
+```bash
+curl http://localhost:8080/actuator/health
+```
+
+### Prometheus
+
+```bash
+curl http://localhost:8080/actuator/prometheus
+```
+
+---
+
+## 🧪 Testes
+
+A v0.1 possui testes automatizados para as principais responsabilidades da API.
+
+### Executar testes
+
+```bash
+cd backend/ingestion-api
+mvn clean test
+```
+
+### Executar validação completa
+
+```bash
+mvn clean verify
+```
+
+### Relatório JaCoCo
+
+Após o `verify`:
+
+```text
+backend/ingestion-api/target/site/jacoco/index.html
+```
+
+Cobertura atual é utilizada como instrumento de inspeção. O quality gate mínimo será introduzido conforme a suíte de testes crescer.
+
+---
+
+## ⚙️ CI — GitHub Actions
+
+O workflow:
+
+```text
+.github/workflows/backend-ci.yml
+```
+
+executa:
+
+```text
+Checkout
+   ↓
+Java 21
+   ↓
+Maven
+   ↓
+mvn -B verify
+   ↓
+Testes + JaCoCo
+```
+
+A v0.1 foi integrada à `main` após o pipeline concluir com sucesso.
+
+---
+
+## 📚 Documentação técnica
+
+- [Exemplos da API](docs/API_EXAMPLES.md)
+- [Implementação da v0.1](docs/V0.1_IMPLEMENTATION.md)
+- [Arquitetura](docs/ARCHITECTURE.md)
+- [Roadmap](docs/ROADMAP.md)
+
+---
+
+## 🏗️ Arquitetura alvo da plataforma
 
 <p align="center">
   <img src="docs/assets/smartretail-data-platform-architecture.svg" alt="Arquitetura SmartRetail Data Platform" width="100%">
 </p>
 
-A arquitetura separa responsabilidades em camadas, evitando acoplamento entre geração, processamento, armazenamento e consumo dos dados.
-
-### Fluxo principal
-
 ```text
-Web / Mobile / Lojas / APIs / Logs
+Web / Mobile / PDV / APIs
+          │
+          ▼
+ Spring Boot — Java 21
+          │
+          ▼
+      Apache Kafka
+       /        \
+      /          \
+     ▼            ▼
+Spark Structured   Data Lakehouse
+Streaming          MinIO/S3 + Iceberg
+     │                    │
+     ▼                    ▼
+Real-time KPIs      Bronze → Silver → Gold
+                           │
+                           ▼
+                        PySpark
+                           │
+                           ▼
+                     MLflow + ML
+                           │
+                 ┌─────────┴─────────┐
+                 ▼                   ▼
+          Analytics API        Data Products
                  │
                  ▼
-        Spring Boot API — Java 21
-                 │
-                 ▼
-            Apache Kafka
-             /         \
-            /           \
-           ▼             ▼
-Spark Structured      Data Lake / Lakehouse
-Streaming             MinIO / S3 + Iceberg
-     │                  │
-     ▼                  ▼
-Real-time KPIs    Bronze → Silver → Gold
-                        │
-                        ▼
-                     PySpark
-                        │
-                        ▼
-                  MLflow + ML
-                        │
-             ┌──────────┴──────────┐
-             ▼                     ▼
-       PostgreSQL/API        Analytics
-             │
-             ▼
-       Dashboard React
+          Dashboard React
 ```
+
+Os componentes além da Event Platform serão implementados incrementalmente nas próximas releases.
 
 ---
 
-## 🎯 Problema de negócio
+## 🎯 Casos de uso planejados
 
-Uma operação de varejo moderna gera dados continuamente em vários canais.
-
-O projeto considera eventos provenientes de:
-
-- e-commerce;
-- aplicativo mobile;
-- pontos de venda;
-- APIs de parceiros;
-- sistemas de estoque;
-- sensores IoT;
-- logs de aplicações e infraestrutura.
-
-A plataforma deverá transformar esses eventos em informações úteis para perguntas como:
+A plataforma evoluirá para responder perguntas como:
 
 - Qual é a receita por minuto?
 - Qual é o ticket médio por canal?
-- Quais produtos estão vendendo mais?
-- Quais produtos possuem risco de ruptura?
-- Quais clientes abandonaram o carrinho?
-- Qual região apresenta maior conversão?
-- Existem transações com comportamento anômalo?
+- Quais produtos possuem maior volume de vendas?
+- Quais produtos apresentam risco de ruptura?
+- Qual região possui maior conversão?
+- Existem transações ou eventos anômalos?
 - Qual é a demanda prevista para as próximas horas ou dias?
 
 ---
 
-## 5️⃣ Big Data na prática — os 5 Vs
+## 5️⃣ Big Data — os 5 Vs
 
-| V | Como será demonstrado |
+| V | Aplicação no projeto |
 |---|---|
-| **Volume** | geração e processamento de grandes quantidades de eventos de vendas, clientes e estoque |
-| **Velocity** | ingestão e processamento contínuo com Kafka e Spark Structured Streaming |
-| **Variety** | eventos JSON, arquivos CSV, logs, dados relacionais, APIs e telemetria |
-| **Veracity** | validação, deduplicação, tratamento de inconsistências e regras de Data Quality |
-| **Value** | KPIs, alertas, previsões, detecção de anomalias e suporte à decisão |
+| **Volume** | processamento de grandes quantidades de eventos de varejo |
+| **Velocity** | ingestão contínua com Kafka e processamento com Spark |
+| **Variety** | JSON, CSV, logs, dados relacionais, APIs e telemetria |
+| **Veracity** | validação, deduplicação, consistência e Data Quality |
+| **Value** | KPIs, alertas, previsões e suporte à decisão |
 
 ---
 
-## 🧩 Componentes da arquitetura
+## 🏞️ Data Lakehouse — roadmap
 
-### 1. Fontes de dados
-
-As fontes representam diferentes origens do ecossistema de varejo:
-
-```text
-Web
-Mobile
-PDV
-APIs
-IoT
-Logs
-Sistemas externos
-```
-
-Cada origem poderá produzir eventos com diferentes estruturas, frequência e criticidade.
-
----
-
-### 2. Backend de ingestão — Java 21 + Spring Boot
-
-Responsável por:
-
-- receber eventos via REST;
-- validar payloads;
-- aplicar regras de entrada;
-- gerar identificadores;
-- publicar eventos no Kafka;
-- expor health checks;
-- registrar métricas e traces;
-- padronizar erros de API.
-
-Stack planejada:
-
-```text
-Java 21
-Spring Boot
-Spring Web
-Spring Validation
-Spring Data JPA
-Spring Actuator
-JUnit 5
-Mockito
-Testcontainers
-```
-
----
-
-### 3. Event Streaming — Apache Kafka
-
-Kafka será o backbone de eventos da plataforma.
-
-Tópicos planejados:
-
-| Tópico | Responsabilidade |
-|---|---|
-| `customer-events` | eventos relacionados a clientes |
-| `product-views` | visualizações de produtos |
-| `cart-events` | adição, remoção e abandono de carrinho |
-| `orders` | pedidos criados e atualizados |
-| `payments` | eventos de pagamento |
-| `inventory-events` | movimentações de estoque |
-| `shipping-events` | eventos de entrega |
-
-Práticas previstas:
-
-- consumer groups;
-- particionamento;
-- retry;
-- Dead Letter Topic;
-- idempotência;
-- versionamento de eventos;
-- observabilidade do fluxo.
-
----
-
-## 📨 Exemplo de evento
-
-```json
-{
-  "eventId": "EVT-9821837",
-  "eventType": "ORDER_CREATED",
-  "customerId": "CUS-81921",
-  "productId": "PROD-3321",
-  "quantity": 2,
-  "unitPrice": 249.90,
-  "channel": "WEB",
-  "location": "SAO_PAULO",
-  "timestamp": "2026-09-29T18:14:32Z"
-}
-```
-
-O contrato deverá evoluir de forma controlada para evitar breaking changes entre produtores e consumidores.
-
----
-
-## ⚡ Streaming Analytics
-
-O **Spark Structured Streaming** deverá consumir eventos Kafka e calcular métricas em janelas de tempo.
-
-Exemplos:
-
-- vendas por minuto;
-- receita por canal;
-- ticket médio;
-- top produtos;
-- conversão;
-- estoque crítico;
-- quantidade de eventos por segundo;
-- anomalias operacionais.
-
-Fluxo conceitual:
-
-```text
-Kafka
-  │
-  ▼
-Spark Structured Streaming
-  │
-  ├── agregações
-  ├── janelas de tempo
-  ├── filtros
-  ├── enriquecimento
-  └── métricas
-  │
-  ▼
-Analytics / Serving Layer
-```
-
----
-
-## 🏞️ Data Lakehouse
-
-O armazenamento analítico seguirá o padrão **Medallion Architecture**.
+A evolução analítica utilizará Medallion Architecture.
 
 ### Bronze
 
-Dados brutos e imutáveis.
-
-Objetivos:
-
-- preservar eventos originais;
-- permitir reprocessamento;
-- manter rastreabilidade.
+Dados brutos e imutáveis para rastreabilidade e reprocessamento.
 
 ### Silver
 
-Dados tratados e padronizados.
-
-Processamentos:
-
-- remoção de duplicidades;
-- normalização;
-- validação;
-- tratamento de campos inválidos;
-- enriquecimento.
+Dados tratados, deduplicados, normalizados e enriquecidos.
 
 ### Gold
 
-Dados preparados para consumo analítico.
-
-Exemplos:
+Dados preparados para consumo analítico, por exemplo:
 
 ```text
 sales_daily
@@ -366,242 +441,72 @@ sales_forecast
 
 Tecnologias planejadas:
 
-- MinIO / AWS S3;
-- Apache Iceberg;
-- Parquet;
-- PySpark.
+- MinIO / AWS S3
+- Apache Iceberg
+- Parquet
+- PySpark
 
 ---
 
-## 🔁 Orquestração — Apache Airflow
+## 🔁 Data Engineering — roadmap
 
-O Airflow será responsável pela execução e observabilidade dos pipelines batch.
+A camada de engenharia de dados deverá evoluir com:
 
-Exemplo de DAG:
-
-```text
-ingest
-  │
-  ▼
-validate
-  │
-  ▼
-bronze_to_silver
-  │
-  ▼
-silver_to_gold
-  │
-  ▼
-data_quality
-  │
-  ├──► train_model
-  │
-  └──► publish_metrics
-```
-
-Aspectos planejados:
-
-- retries;
-- dependências;
-- scheduling;
-- parametrização;
-- SLA de tarefas;
-- logs;
-- alertas.
+- Apache Airflow
+- PySpark
+- Data Quality
+- retries
+- scheduling
+- SLAs
+- logs
+- alertas
+- pipelines Bronze → Silver → Gold
 
 ---
 
-## 🧹 Data Quality e Veracidade
+## 🤖 Machine Learning — roadmap
 
-A camada de qualidade deverá validar regras como:
+Casos de uso previstos:
 
-- `eventId` obrigatório;
-- timestamps válidos;
-- valores monetários não negativos;
-- quantidade maior que zero;
-- IDs consistentes;
-- eventos duplicados;
-- campos obrigatórios por tipo de evento;
-- integridade entre produto, pedido e estoque.
+- previsão de demanda;
+- detecção de anomalias;
+- risco de ruptura de estoque;
+- análise de comportamento transacional.
 
-Métricas de qualidade previstas:
-
-```text
-completeness
-uniqueness
-validity
-consistency
-freshness
-```
-
----
-
-## 🤖 Machine Learning
-
-Após a consolidação da plataforma de dados, a camada de ML deverá explorar casos de uso como:
-
-### Previsão de demanda
-
-Entradas possíveis:
-
-- histórico de vendas;
-- produto;
-- preço;
-- promoção;
-- região;
-- dia da semana;
-- horário;
-- sazonalidade;
-- estoque.
-
-Saída:
-
-```text
-Produto: Notebook X
-Demanda prevista — próximas 24h: 183
-Estoque atual: 97
-Risco de ruptura: ALTO
-```
-
-### Detecção de anomalias
-
-Aplicável a:
-
-- picos inesperados de vendas;
-- pagamentos fora do padrão;
-- eventos duplicados;
-- comportamento atípico de estoque.
-
-O **MLflow** será utilizado para rastreamento de experimentos, métricas, artefatos e versionamento de modelos.
-
----
-
-## 📊 Serving Layer e Dashboard
-
-Os resultados analíticos serão disponibilizados por meio de:
-
-- PostgreSQL;
-- API analítica Spring Boot;
-- dashboard React.
-
-KPIs previstos:
-
-| KPI | Objetivo |
-|---|---|
-| Receita | acompanhar faturamento |
-| Pedidos | monitorar volume transacional |
-| Ticket médio | medir valor médio das compras |
-| Conversão | avaliar eficiência dos canais |
-| Estoque crítico | antecipar indisponibilidade |
-| Top produtos | identificar demanda |
-| Abandono | analisar comportamento |
-| Forecast | apoiar planejamento |
+O MLflow será utilizado para rastreamento de experimentos, métricas, artefatos e modelos.
 
 ---
 
 ## 🔭 Observabilidade
 
-A plataforma prevê observabilidade distribuída desde o início.
+### Implementado na v0.1
 
-### Prometheus
+- Spring Boot Actuator
+- Micrometer
+- endpoint Prometheus
+- logs da aplicação
 
-Métricas de:
+### Evolução planejada
 
-- aplicações;
-- consumidores;
-- latência;
-- throughput;
-- erros.
-
-### Grafana
-
-Dashboards para:
-
-- APIs;
-- Kafka;
-- Spark;
-- infraestrutura;
-- indicadores técnicos.
-
-### OpenTelemetry
-
-Coleta de:
-
-- traces;
-- métricas;
-- logs;
-- correlação entre serviços.
+- Prometheus server
+- Grafana
+- OpenTelemetry
+- tracing distribuído
+- correlação entre logs, métricas e traces
 
 ---
 
 ## 🛡️ Segurança e governança
 
-Itens previstos para evolução:
+Princípios adotados:
 
-- autenticação e autorização;
-- segregação de ambientes;
-- secrets fora do código;
-- proteção de informações sensíveis;
-- mascaramento de dados;
-- trilha de auditoria;
-- retenção;
-- lineage;
-- princípio do menor privilégio.
-
-Nenhum segredo real deverá ser versionado no repositório.
-
----
-
-## 🧪 Estratégia de testes
-
-O projeto deverá possuir testes em diferentes níveis:
-
-```text
-Unit Tests
-Integration Tests
-Repository Tests
-API Tests
-Kafka Integration Tests
-Pipeline Tests
-Data Quality Tests
-End-to-End Tests
-```
-
-Ferramentas previstas:
-
-- JUnit 5;
-- Mockito;
-- MockMvc;
-- Testcontainers;
-- pytest na camada Python.
-
----
-
-## 🐳 Infraestrutura
-
-A evolução da infraestrutura está planejada em duas etapas.
-
-### Desenvolvimento local
-
-```text
-Docker
-Docker Compose
-PostgreSQL
-Kafka
-MinIO
-Redis
-```
-
-### Evolução de plataforma
-
-```text
-Kubernetes
-Prometheus
-Grafana
-OpenTelemetry
-CI/CD
-Cloud
-```
+- nenhum segredo real versionado no repositório;
+- configuração por variáveis de ambiente;
+- segregação entre configuração local e código;
+- evolução futura para autenticação e autorização;
+- princípio do menor privilégio;
+- auditoria;
+- retenção e lineage.
 
 ---
 
@@ -609,56 +514,53 @@ Cloud
 
 | Área | Tecnologias |
 |---|---|
-| Backend | Java 21, Spring Boot |
+| Backend | Java 21, Spring Boot 3.5.5 |
 | API | REST, Validation, Problem Details |
-| Streaming | Apache Kafka |
-| Big Data | Apache Spark, Structured Streaming |
-| Data Engineering | Python, PySpark, Airflow |
-| Data Lake | MinIO / AWS S3 |
-| Lakehouse | Apache Iceberg, Parquet |
-| Banco relacional | PostgreSQL |
-| Cache | Redis |
-| Machine Learning | MLlib, MLflow |
-| Frontend | React, Vite |
+| Persistência | PostgreSQL 17, Spring Data JPA |
+| Streaming | Apache Kafka 3.9.1 |
+| Resiliência | Retry, DLT, Idempotência |
+| Mensageria | Transactional Outbox |
+| Schema | Flyway |
+| Observabilidade | Actuator, Micrometer, Prometheus |
+| Testes | JUnit 5, Mockito, MockMvc, JaCoCo |
 | Containers | Docker, Docker Compose |
-| Orquestração | Kubernetes |
-| Observabilidade | Prometheus, Grafana, OpenTelemetry |
-| Testes | JUnit, Mockito, MockMvc, Testcontainers, pytest |
+| CI | GitHub Actions |
+| Big Data | Apache Spark — próxima release |
+| Data Engineering | PySpark, Airflow — roadmap |
+| Lakehouse | MinIO/S3, Iceberg, Parquet — roadmap |
+| ML | MLflow — roadmap |
+| Frontend | React/Vite — roadmap |
 
 ---
 
-## 📁 Estrutura planejada do repositório
+## 📁 Estrutura do projeto
 
 ```text
 smartretail-data-platform/
 ├── backend/
-│   ├── ingestion-api/
-│   └── analytics-api/
-├── streaming/
-│   └── spark-streaming/
-├── data-engineering/
-│   ├── airflow/
-│   ├── pyspark/
-│   └── data-quality/
-├── ml/
-│   ├── training/
-│   └── experiments/
-├── frontend/
-├── infra/
-│   ├── docker/
-│   ├── kubernetes/
-│   └── observability/
+│   └── ingestion-api/
+│       ├── src/main/java/
+│       ├── src/main/resources/
+│       │   └── db/migration/
+│       ├── src/test/java/
+│       ├── Dockerfile
+│       └── pom.xml
 ├── docs/
 │   ├── assets/
+│   ├── API_EXAMPLES.md
 │   ├── ARCHITECTURE.md
-│   └── ROADMAP.md
+│   ├── ROADMAP.md
+│   └── V0.1_IMPLEMENTATION.md
 ├── .github/
-├── .gitignore
+│   └── workflows/
+│       └── backend-ci.yml
+├── .env.example
+├── docker-compose.yml
 ├── LICENSE
 └── README.md
 ```
 
-A estrutura será criada conforme cada componente passar a existir; o README não assume como implementado o que ainda está no roadmap.
+A estrutura cresce junto com as releases; o repositório não apresenta componentes de roadmap como se já estivessem implementados.
 
 ---
 
@@ -666,43 +568,40 @@ A estrutura será criada conforme cada componente passar a existir; o README nã
 
 | Release | Entrega | Status |
 |---|---|---|
-| **v0.1** | Event Platform — Spring Boot + Kafka + PostgreSQL + Docker | 🚧 Em desenvolvimento |
-| **v0.2** | Streaming Analytics — Spark Structured Streaming | ⏳ Planejada |
+| **v0.1** | Event Platform — Spring Boot + Kafka + PostgreSQL + Docker | ✅ Concluída |
+| **v0.2** | Streaming Analytics — Spark Structured Streaming | 🔜 Próxima |
 | **v0.3** | Data Lakehouse — MinIO/S3 + Bronze/Silver/Gold + Iceberg | ⏳ Planejada |
 | **v0.4** | Data Engineering — Airflow + PySpark + Data Quality | ⏳ Planejada |
 | **v0.5** | Analytics — API + Dashboard React | ⏳ Planejada |
 | **v0.6** | AI — MLflow + previsão de demanda + anomalias | ⏳ Planejada |
 
-Roadmap detalhado: [docs/ROADMAP.md](docs/ROADMAP.md)
-
-Arquitetura detalhada: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
-
 ---
 
 ## 🎓 Competências demonstradas
 
-Este projeto foi desenhado para evidenciar competências em:
+A v0.1 já demonstra, na prática:
 
+- desenvolvimento backend com Java 21;
+- Spring Boot;
+- desenho de APIs REST;
 - arquitetura orientada a eventos;
-- desenvolvimento backend Java;
-- desenho de APIs;
-- processamento de dados em tempo real;
-- sistemas distribuídos;
-- engenharia de dados;
-- modelagem de pipelines;
-- Data Lake/Lakehouse;
-- qualidade de dados;
+- Apache Kafka;
+- Transactional Outbox;
+- idempotência;
+- processamento assíncrono;
+- persistência com PostgreSQL;
+- versionamento de schema com Flyway;
+- testes automatizados;
+- cobertura de código;
+- CI;
+- Docker;
 - observabilidade;
-- containers;
-- machine learning aplicado;
 - documentação técnica;
 - evolução incremental de arquitetura.
 
 ---
 
 ## 📐 Princípios de engenharia
-
-O desenvolvimento deverá seguir os seguintes princípios:
 
 1. **Clareza antes de complexidade**
 2. **Contratos explícitos**
@@ -714,14 +613,6 @@ O desenvolvimento deverá seguir os seguintes princípios:
 8. **Dados confiáveis antes de IA**
 9. **Documentação junto com o código**
 10. **Evolução incremental**
-
----
-
-## ▶️ Execução
-
-A v0.1 já inclui Docker Compose para PostgreSQL, Kafka e a API de ingestão.
-
-O pipeline Maven foi validado com sucesso no GitHub Actions. A validação end-to-end local com os containers é o próximo checkpoint antes da evolução para a v0.2.
 
 ---
 
