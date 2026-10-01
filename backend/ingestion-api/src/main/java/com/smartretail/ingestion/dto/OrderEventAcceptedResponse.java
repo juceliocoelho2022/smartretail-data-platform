@@ -8,5 +8,4 @@ public record OrderEventAcceptedResponse(
         String status,
         boolean replayed,
         Instant acceptedAt
-) {
-}
+) {}

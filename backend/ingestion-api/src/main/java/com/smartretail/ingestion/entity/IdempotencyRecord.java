@@ -1,10 +1,6 @@
 package com.smartretail.ingestion.entity;
 
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.Id;
-import jakarta.persistence.Table;
-
+import jakarta.persistence.*;
 import java.time.Instant;
 import java.util.UUID;
 
@@ -22,8 +18,7 @@ public class IdempotencyRecord {
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
 
-    protected IdempotencyRecord() {
-    }
+    protected IdempotencyRecord() {}
 
     public IdempotencyRecord(String idempotencyKey, UUID eventId, Instant createdAt) {
         this.idempotencyKey = idempotencyKey;

@@ -43,8 +43,12 @@ public class OutboxPublisher {
         for (var outbox : events) {
             try {
                 var event = objectMapper.readValue(outbox.getPayload(), OrderCreatedEvent.class);
-                kafkaTemplate.send(ordersTopic, outbox.getAggregateId(), event).get(5, TimeUnit.SECONDS);
+
+                kafkaTemplate.send(ordersTopic, outbox.getAggregateId(), event)
+                        .get(5, TimeUnit.SECONDS);
+
                 outbox.markPublished(Instant.now());
+
                 log.info("event_published eventId={} topic={}", outbox.getId(), ordersTopic);
             } catch (Exception ex) {
                 outbox.markFailure(ex.getMessage());

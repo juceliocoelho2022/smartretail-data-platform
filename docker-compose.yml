@@ -7,7 +7,7 @@ services:
       POSTGRES_USER: smartretail
       POSTGRES_PASSWORD: smartretail
     ports:
-      - "5432:5432"
+      - "5433:5432"
     volumes:
       - smartretail-postgres-data:/var/lib/postgresql/data
     healthcheck:
@@ -15,8 +15,6 @@ services:
       interval: 5s
       timeout: 5s
       retries: 10
-    networks:
-      - smartretail
 
   kafka:
     image: apache/kafka:3.9.1
@@ -26,8 +24,8 @@ services:
     environment:
       KAFKA_NODE_ID: 1
       KAFKA_PROCESS_ROLES: broker,controller
-      KAFKA_LISTENERS: CONTROLLER://:9093,PLAINTEXT://:19092,PLAINTEXT_HOST://:9092
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:19092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_LISTENERS: CONTROLLER://:9093,PLAINTEXT://:29092,PLAINTEXT_HOST://:9092
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
       KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
       KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
@@ -37,8 +35,6 @@ services:
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
       KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
       KAFKA_NUM_PARTITIONS: 3
-    networks:
-      - smartretail
 
   ingestion-api:
     build:
@@ -48,7 +44,7 @@ services:
       DB_URL: jdbc:postgresql://postgres:5432/smartretail
       DB_USER: smartretail
       DB_PASSWORD: smartretail
-      KAFKA_BOOTSTRAP_SERVERS: kafka:19092
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
     ports:
       - "8080:8080"
     depends_on:
@@ -56,12 +52,6 @@ services:
         condition: service_healthy
       kafka:
         condition: service_started
-    networks:
-      - smartretail
 
 volumes:
   smartretail-postgres-data:
-
-networks:
-  smartretail:
-    driver: bridge
