@@ -1,0 +1,42 @@
+spring:
+  application:
+    name: smartretail-analytics-api
+
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5433/smartretail}
+    username: ${DB_USER:smartretail}
+    password: ${DB_PASSWORD:smartretail}
+
+  flyway:
+    enabled: true
+    schemas: analytics
+    default-schema: analytics
+    create-schemas: true
+
+server:
+  port: ${SERVER_PORT:8082}
+  shutdown: graceful
+
+app:
+  cors:
+    allowed-origin: ${FRONTEND_ORIGIN:http://localhost:5173}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+
+  endpoint:
+    health:
+      probes:
+        enabled: true
+
+  metrics:
+    tags:
+      application: ${spring.application.name}
+
+logging:
+  level:
+    root: INFO
+    com.smartretail: INFO
