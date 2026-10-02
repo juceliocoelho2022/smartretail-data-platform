@@ -1,4 +1,5 @@
 services:
+
   postgres:
     image: postgres:17-alpine
     container_name: smartretail-postgres
@@ -60,8 +61,19 @@ services:
     environment:
       KAFKA_BOOTSTRAP_SERVERS: kafka:29092
       ORDERS_TOPIC: smartretail.orders.v1
+
       SPARK_APP_NAME: smartretail-orders-streaming
+
       CHECKPOINT_LOCATION: /opt/spark/work-dir/checkpoints/orders
+      BRONZE_CHECKPOINT_LOCATION: /opt/spark/work-dir/checkpoints/bronze-orders
+
+      BRONZE_PATH: s3a://smartretail-bronze/orders
+
+      S3_ENDPOINT: http://minio:9000
+      S3_ACCESS_KEY: ${MINIO_ROOT_USER:-smartretail}
+      S3_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-smartretail123}
+      S3_REGION: us-east-1
+
       PYSPARK_PYTHON: python3
       PYSPARK_DRIVER_PYTHON: python3
 
@@ -79,49 +91,122 @@ services:
       - --conf
       - spark.jars.ivy=/tmp/.ivy2
       - --packages
-      - org.apache.spark:spark-sql-kafka-0-10_2.13:4.0.1
+      - org.apache.spark:spark-sql-kafka-0-10_2.13:4.0.1,org.apache.hadoop:hadoop-aws:3.4.1
       - /opt/spark/work-dir/src/main/python/app.py
 
     depends_on:
       kafka:
         condition: service_started
 
+      minio:
+        condition: service_healthy
 
+
+  spark-silver:
+    image: apache/spark:4.0.1-java21-python3
+    container_name: smartretail-spark-silver
+
+    environment:
+      BRONZE_PATH: s3a://smartretail-bronze/orders
+      SILVER_PATH: s3a://smartretail-silver/orders
+
+      SILVER_CHECKPOINT_LOCATION: /opt/spark/work-dir/checkpoints/silver-orders
+
+      S3_ENDPOINT: http://minio:9000
+      S3_ACCESS_KEY: ${MINIO_ROOT_USER:-smartretail}
+      S3_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-smartretail123}
+      S3_REGION: us-east-1
+
+      PYSPARK_PYTHON: python3
+      PYSPARK_DRIVER_PYTHON: python3
+
+    volumes:
+      - ./streaming/spark-streaming/src:/opt/spark/work-dir/src:ro
+      - ./streaming/spark-streaming/checkpoints:/opt/spark/work-dir/checkpoints
+
+    ports:
+      - "4041:4040"
+
+    command:
+      - /opt/spark/bin/spark-submit
+      - --master
+      - local[*]
+      - --conf
+      - spark.jars.ivy=/tmp/.ivy2
+      - --packages
+      - org.apache.hadoop:hadoop-aws:3.4.1
+      - /opt/spark/work-dir/src/main/python/silver_app.py
+
+    depends_on:
+      minio:
+        condition: service_healthy
+
+      spark-streaming:
+        condition: service_started
   minio:
-    image: minio/minio:latest
+    image: soldevelo/minio:2025.10.15
     container_name: smartretail-minio
+
     environment:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER:-smartretail}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-smartretail123}
-    command: server /data --console-address ":9001"
+
+      MINIO_BROWSER: "on"
+
+      MINIO_DEFAULT_BUCKETS: >-
+        smartretail-bronze,
+        smartretail-silver,
+        smartretail-gold,
+        smartretail-warehouse
+
     ports:
       - "9000:9000"
       - "9001:9001"
-    volumes:
-      - smartretail-minio-data:/data
 
-  minio-init:
-    image: minio/mc:latest
-    container_name: smartretail-minio-init
+    volumes:
+      - smartretail-minio-data:/bitnami/minio/data
+
+    healthcheck:
+      test: ["CMD-SHELL", "mc ready local >/dev/null 2>&1 || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+
+  spark-gold:
+    image: apache/spark:4.0.1-java21-python3
+    container_name: smartretail-spark-gold
+
     environment:
-      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-smartretail}
-      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-smartretail123}
+      SILVER_PATH: s3a://smartretail-silver/orders
+
+      GOLD_DAILY_PATH: s3a://smartretail-gold/orders-daily
+      GOLD_SUMMARY_PATH: s3a://smartretail-gold/orders-summary
+
+      S3_ENDPOINT: http://minio:9000
+      S3_ACCESS_KEY: ${MINIO_ROOT_USER:-smartretail}
+      S3_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-smartretail123}
+      S3_REGION: us-east-1
+
+      PYSPARK_PYTHON: python3
+      PYSPARK_DRIVER_PYTHON: python3
+
+    volumes:
+      - ./streaming/spark-streaming/src:/opt/spark/work-dir/src:ro
+
+    command:
+      - /opt/spark/bin/spark-submit
+      - --master
+      - local[*]
+      - --conf
+      - spark.jars.ivy=/tmp/.ivy2
+      - --packages
+      - org.apache.hadoop:hadoop-aws:3.4.1
+      - /opt/spark/work-dir/src/main/python/gold_app.py
+
     depends_on:
       minio:
-        condition: service_started
-    entrypoint: >
-      /bin/sh -c "
-      until mc alias set smartretail http://minio:9000 ${MINIO_ROOT_USER:-smartretail} ${MINIO_ROOT_PASSWORD:-smartretail123}; do
-        echo 'Waiting for MinIO...';
-        sleep 2;
-      done;
-      mc mb --ignore-existing smartretail/smartretail-bronze;
-      mc mb --ignore-existing smartretail/smartretail-silver;
-      mc mb --ignore-existing smartretail/smartretail-gold;
-      mc mb --ignore-existing smartretail/smartretail-warehouse;
-      echo 'SmartRetail Lakehouse buckets are ready.';
-      "
-
+        condition: service_healthy
 volumes:
   smartretail-postgres-data:
   smartretail-minio-data:
