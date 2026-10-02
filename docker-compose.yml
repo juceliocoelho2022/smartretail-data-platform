@@ -251,6 +251,58 @@ services:
       postgres:
         condition: service_healthy
 
+
+  spark-data-quality:
+    image: apache/spark:4.0.1-java21-python3
+    container_name: smartretail-spark-data-quality
+
+    environment:
+      SILVER_PATH: s3a://smartretail-silver/orders
+
+      S3_ENDPOINT: http://minio:9000
+      S3_ACCESS_KEY: ${MINIO_ROOT_USER:-smartretail}
+      S3_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-smartretail123}
+      S3_REGION: us-east-1
+
+      PYSPARK_PYTHON: python3
+      PYSPARK_DRIVER_PYTHON: python3
+
+    volumes:
+      - ./streaming/spark-streaming/src:/opt/spark/work-dir/src:ro
+
+    command:
+      - /opt/spark/bin/spark-submit
+      - --master
+      - local[*]
+      - --conf
+      - spark.jars.ivy=/tmp/.ivy2
+      - --packages
+      - org.apache.hadoop:hadoop-aws:3.4.1
+      - /opt/spark/work-dir/src/main/python/data_quality_app.py
+
+    depends_on:
+      minio:
+        condition: service_healthy
+
+  airflow:
+    build:
+      context: ./orchestration/airflow
+    container_name: smartretail-airflow
+
+    environment:
+      AIRFLOW_HOME: /opt/airflow
+      AIRFLOW__CORE__LOAD_EXAMPLES: "false"
+
+    ports:
+      - "8081:8080"
+
+    volumes:
+      - smartretail-airflow-data:/opt/airflow
+      - ./orchestration/airflow/dags:/opt/airflow/dags:ro
+
+    command:
+      - standalone
+
 volumes:
   smartretail-postgres-data:
   smartretail-minio-data:
