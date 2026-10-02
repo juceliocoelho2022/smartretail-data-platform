@@ -74,17 +74,42 @@ def truncate_serving_tables(
 ) -> None:
     jvm = spark.sparkContext._gateway.jvm
 
-    jvm.java.lang.Class.forName(
+    context_loader = (
+        jvm.java.lang.Thread
+        .currentThread()
+        .getContextClassLoader()
+    )
+
+    driver_class = context_loader.loadClass(
         "org.postgresql.Driver"
     )
 
-    connection = (
-        jvm.java.sql.DriverManager.getConnection(
-            ANALYTICS_JDBC_URL,
-            ANALYTICS_JDBC_USER,
-            ANALYTICS_JDBC_PASSWORD,
-        )
+    driver = (
+        driver_class
+        .getDeclaredConstructor()
+        .newInstance()
     )
+
+    properties = jvm.java.util.Properties()
+    properties.setProperty(
+        "user",
+        ANALYTICS_JDBC_USER,
+    )
+    properties.setProperty(
+        "password",
+        ANALYTICS_JDBC_PASSWORD,
+    )
+
+    connection = driver.connect(
+        ANALYTICS_JDBC_URL,
+        properties,
+    )
+
+    if connection is None:
+        raise RuntimeError(
+            "PostgreSQL JDBC driver did not "
+            "accept the analytics URL."
+        )
 
     statement = None
 
