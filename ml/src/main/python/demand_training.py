@@ -134,7 +134,7 @@ def train_candidate_runs(
             })
             mlflow.spark.log_model(
                 model,
-                name="model",
+                artifact_path="model",
             )
 
             results.append(
