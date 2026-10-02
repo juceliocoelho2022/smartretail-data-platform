@@ -1,0 +1,33 @@
+name: dashboard-ci
+
+on:
+  push:
+    paths:
+      - "frontend/analytics-dashboard/**"
+      - ".github/workflows/dashboard-ci.yml"
+
+  pull_request:
+    paths:
+      - "frontend/analytics-dashboard/**"
+      - ".github/workflows/dashboard-ci.yml"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install dependencies
+        working-directory: frontend/analytics-dashboard
+        run: npm install
+
+      - name: Build dashboard
+        working-directory: frontend/analytics-dashboard
+        run: npm run build
