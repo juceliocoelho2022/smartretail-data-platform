@@ -13,9 +13,12 @@
   <img alt="Spring Boot 3.5.5" src="https://img.shields.io/badge/Spring%20Boot-3.5.5-6DB33F?logo=springboot&logoColor=white">
   <img alt="Apache Kafka 3.9.1" src="https://img.shields.io/badge/Apache%20Kafka-3.9.1-231F20?logo=apachekafka&logoColor=white">
   <img alt="PostgreSQL 17" src="https://img.shields.io/badge/PostgreSQL-17-4169E1?logo=postgresql&logoColor=white">
+  <img alt="Apache Spark 4.0.1" src="https://img.shields.io/badge/Apache%20Spark-4.0.1-E25A1C?logo=apachespark&logoColor=white">
   <img alt="Docker" src="https://img.shields.io/badge/Docker-Compose-2496ED?logo=docker&logoColor=white">
-  <img alt="CI" src="https://github.com/juceliocoelho2022/smartretail-data-platform/actions/workflows/backend-ci.yml/badge.svg?branch=main">
-  <img alt="v0.1" src="https://img.shields.io/badge/v0.1-Event%20Platform%20conclu%C3%ADda-2EA44F">
+  <img alt="Backend CI" src="https://github.com/juceliocoelho2022/smartretail-data-platform/actions/workflows/backend-ci.yml/badge.svg?branch=main">
+  <img alt="Streaming CI" src="https://github.com/juceliocoelho2022/smartretail-data-platform/actions/workflows/streaming-ci.yml/badge.svg?branch=main">
+  <img alt="v0.2" src="https://img.shields.io/badge/v0.2-Streaming%20conclu%C3%ADdo-2EA44F">
+  <img alt="v0.3" src="https://img.shields.io/badge/v0.3-Lakehouse%20em%20desenvolvimento-F59E0B">
 </p>
 
 ---
@@ -28,10 +31,10 @@ O objetivo é demonstrar, de forma incremental, o ciclo completo do dado:
 
 **geração → ingestão → streaming → processamento → armazenamento → qualidade → analytics → machine learning → consumo**
 
-A primeira release funcional já implementa uma fatia vertical completa de ingestão e processamento assíncrono de pedidos.
+As releases v0.1 e v0.2 já implementam uma fatia vertical completa: ingestão transacional, publicação no Kafka e processamento analítico em tempo real com Spark Structured Streaming.
 
-> **Status atual:** ✅ **v0.1 — Event Platform concluída, validada localmente de ponta a ponta e aprovada pelo CI.**  
-> **Próxima etapa:** v0.2 — Spark Structured Streaming.
+> **Status atual:** ✅ **v0.2 — Streaming Analytics concluída, validada de ponta a ponta e aprovada pelo CI.**  
+> **Em desenvolvimento:** 🚧 **v0.3 — Data Lakehouse com MinIO/S3, Bronze/Silver/Gold e Apache Iceberg.**
 
 ---
 
@@ -397,27 +400,16 @@ Cobertura atual é utilizada como instrumento de inspeção. O quality gate mín
 
 ## ⚙️ CI — GitHub Actions
 
-O workflow:
+Os workflows principais são:
 
 ```text
 .github/workflows/backend-ci.yml
+.github/workflows/streaming-ci.yml
 ```
 
-executa:
+O backend executa Java 21 + Maven + `mvn -B verify`. O streaming configura Java/Python, instala PySpark, executa a suíte de transformações e valida o Docker Compose.
 
-```text
-Checkout
-   ↓
-Java 21
-   ↓
-Maven
-   ↓
-mvn -B verify
-   ↓
-Testes + JaCoCo
-```
-
-A v0.1 foi integrada à `main` após o pipeline concluir com sucesso.
+As releases v0.1 e v0.2 foram integradas à `main` após seus pipelines concluírem com sucesso.
 
 ---
 
@@ -497,9 +489,9 @@ A plataforma evoluirá para responder perguntas como:
 
 ---
 
-## 🏞️ Data Lakehouse — roadmap
+## 🏞️ Data Lakehouse — v0.3 em desenvolvimento
 
-A evolução analítica utilizará Medallion Architecture.
+A evolução analítica utiliza Medallion Architecture. A infraestrutura inicial com MinIO e buckets por camada já foi adicionada na branch v0.3.
 
 ### Bronze
 
@@ -608,9 +600,9 @@ Princípios adotados:
 | Testes | JUnit 5, Mockito, MockMvc, JaCoCo |
 | Containers | Docker, Docker Compose |
 | CI | GitHub Actions |
-| Big Data | Apache Spark — próxima release |
-| Data Engineering | PySpark, Airflow — roadmap |
-| Lakehouse | MinIO/S3, Iceberg, Parquet — roadmap |
+| Big Data | Apache Spark 4.0.1, PySpark, Structured Streaming |
+| Data Engineering | PySpark implementado; Airflow — roadmap |
+| Lakehouse | MinIO/S3 em desenvolvimento; Iceberg e Parquet — v0.3 |
 | ML | MLflow — roadmap |
 | Frontend | React/Vite — roadmap |
 
@@ -628,6 +620,13 @@ smartretail-data-platform/
 │       ├── src/test/java/
 │       ├── Dockerfile
 │       └── pom.xml
+├── streaming/
+│   └── spark-streaming/
+│       ├── src/main/python/
+│       ├── src/test/python/
+│       └── README.md
+├── lakehouse/
+│   └── README.md
 ├── docs/
 │   ├── assets/
 │   ├── API_EXAMPLES.md
@@ -636,7 +635,8 @@ smartretail-data-platform/
 │   └── V0.1_IMPLEMENTATION.md
 ├── .github/
 │   └── workflows/
-│       └── backend-ci.yml
+│       ├── backend-ci.yml
+│       └── streaming-ci.yml
 ├── .env.example
 ├── docker-compose.yml
 ├── LICENSE
@@ -652,8 +652,8 @@ A estrutura cresce junto com as releases; o repositório não apresenta componen
 | Release | Entrega | Status |
 |---|---|---|
 | **v0.1** | Event Platform — Spring Boot + Kafka + PostgreSQL + Docker | ✅ Concluída |
-| **v0.2** | Streaming Analytics — Spark Structured Streaming | 🔜 Próxima |
-| **v0.3** | Data Lakehouse — MinIO/S3 + Bronze/Silver/Gold + Iceberg | ⏳ Planejada |
+| **v0.2** | Streaming Analytics — Spark Structured Streaming | ✅ Concluída |
+| **v0.3** | Data Lakehouse — MinIO/S3 + Bronze/Silver/Gold + Iceberg | 🚧 Em desenvolvimento |
 | **v0.4** | Data Engineering — Airflow + PySpark + Data Quality | ⏳ Planejada |
 | **v0.5** | Analytics — API + Dashboard React | ⏳ Planejada |
 | **v0.6** | AI — MLflow + previsão de demanda + anomalias | ⏳ Planejada |
@@ -662,13 +662,17 @@ A estrutura cresce junto com as releases; o repositório não apresenta componen
 
 ## 🎓 Competências demonstradas
 
-A v0.1 já demonstra, na prática:
+As releases v0.1 e v0.2 já demonstram, na prática:
 
 - desenvolvimento backend com Java 21;
 - Spring Boot;
 - desenho de APIs REST;
 - arquitetura orientada a eventos;
 - Apache Kafka;
+- Apache Spark Structured Streaming;
+- PySpark;
+- event time, watermark e janelas;
+- processamento de métricas em tempo real;
 - Transactional Outbox;
 - idempotência;
 - processamento assíncrono;
