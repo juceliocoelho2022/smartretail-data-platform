@@ -18,7 +18,7 @@
   <img alt="Backend CI" src="https://github.com/juceliocoelho2022/smartretail-data-platform/actions/workflows/backend-ci.yml/badge.svg?branch=main">
   <img alt="Streaming CI" src="https://github.com/juceliocoelho2022/smartretail-data-platform/actions/workflows/streaming-ci.yml/badge.svg?branch=main">
   <img alt="v0.2" src="https://img.shields.io/badge/v0.2-Streaming%20conclu%C3%ADdo-2EA44F">
-  <img alt="v0.3" src="https://img.shields.io/badge/v0.3-Lakehouse%20em%20desenvolvimento-F59E0B">
+  <img alt="v0.3" src="https://img.shields.io/badge/v0.3-Lakehouse%20conclu%C3%ADdo-2EA44F">
 </p>
 
 ---
@@ -33,12 +33,12 @@ O objetivo é demonstrar, de forma incremental, o ciclo completo do dado:
 
 As releases v0.1 e v0.2 já implementam uma fatia vertical completa: ingestão transacional, publicação no Kafka e processamento analítico em tempo real com Spark Structured Streaming.
 
-> **Status atual:** 🚧 **v0.3 — Data Lakehouse em desenvolvimento.**
+> **Status atual:** ✅ **v0.3 — Data Lakehouse concluída e validada.**
 >
 > ✅ Bronze implementada e validada com Spark + MinIO + Parquet  
 > ✅ Silver implementada e validada com Spark + Parquet  
 > ✅ Gold implementada e validada com Spark + Parquet  
-> ✅ 10 testes PySpark das camadas Streaming/Silver/Gold validados  
+> ✅ 15 testes PySpark validados nas camadas Streaming, Silver, Gold e Iceberg  
 > ✅ Apache Iceberg integrado e validado com JDBC Catalog + MinIO  
 > ✅ Snapshots e Time Travel validados: 4 → 5 registros  
 > ✅ Schema Evolution validada sem recriar a tabela
@@ -160,7 +160,7 @@ OK
 
 ---
 
-## 🚧 v0.3 — Data Lakehouse
+## ✅ v0.3 — Data Lakehouse
 
 A v0.3 adiciona persistência analítica ao SmartRetail Data Platform utilizando **MinIO compatível com S3, Apache Spark, PySpark, Hadoop S3A, Parquet e Medallion Architecture**.
 
@@ -345,7 +345,7 @@ A escrita utiliza `overwrite` sobre datasets derivados, permitindo reconstruçã
 
 ### Testes PySpark ✅
 
-As transformações atuais totalizam 10 testes validados:
+Antes da integração Iceberg, as transformações Streaming/Silver/Gold totalizavam 10 testes validados:
 
 ```text
 Streaming transforms: 3
@@ -356,6 +356,19 @@ Total:               10
 ```
 
 Todos concluíram com `OK`.
+
+A integração Iceberg adiciona 5 testes automatizados adicionais para identificadores de catálogo, descoberta de tabela, alinhamento de schema evoluído e comportamento de Time Travel.
+
+```text
+Streaming transforms:  3
+Silver:                5
+Gold:                  2
+Iceberg:               5
+-------------------------
+Total geral:          15
+```
+
+O workflow `streaming-ci` concluiu com sucesso após a inclusão da suíte Iceberg.
 
 ### Buckets do Lakehouse
 
@@ -736,7 +749,7 @@ Real-time KPIs      Bronze → Silver → Gold
           Dashboard React
 ```
 
-A Event Platform (v0.1) e o Streaming Analytics (v0.2) já estão implementados. A camada Lakehouse (v0.3) está em desenvolvimento.
+A Event Platform (v0.1), o Streaming Analytics (v0.2) e o Data Lakehouse (v0.3) estão implementados e validados.
 
 ---
 
@@ -766,7 +779,7 @@ A plataforma evoluirá para responder perguntas como:
 
 ---
 
-## 🏞️ Data Lakehouse — v0.3 em desenvolvimento
+## 🏞️ Data Lakehouse — v0.3 concluída
 
 A v0.3 implementa a **Medallion Architecture** sobre MinIO/S3.
 
@@ -968,7 +981,7 @@ A estrutura cresce junto com as releases; o repositório não apresenta componen
 |---|---|---|
 | **v0.1** | Event Platform — Spring Boot + Kafka + PostgreSQL + Docker | ✅ Concluída |
 | **v0.2** | Streaming Analytics — Spark Structured Streaming | ✅ Concluída |
-| **v0.3** | Data Lakehouse — MinIO/S3 + Bronze/Silver/Gold + Iceberg | 🚧 Em desenvolvimento |
+| **v0.3** | Data Lakehouse — MinIO/S3 + Bronze/Silver/Gold + Iceberg | ✅ Concluída |
 | **v0.4** | Data Engineering — Airflow + PySpark + Data Quality | ⏳ Planejada |
 | **v0.5** | Analytics — API + Dashboard React | ⏳ Planejada |
 | **v0.6** | AI — MLflow + previsão de demanda + anomalias | ⏳ Planejada |
