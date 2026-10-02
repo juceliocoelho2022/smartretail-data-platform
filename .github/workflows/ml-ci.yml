@@ -66,13 +66,20 @@ jobs:
           curl --fail --silent --show-error \
             http://localhost:5000/health
 
-      - name: Show MLflow diagnostics on failure
+      - name: Run ML materialization jobs
+        run: |
+          docker compose run --rm ml-history
+          docker compose run --rm ml-product-demand
+          docker compose run --rm ml-features
+
+      - name: Show ML diagnostics on failure
         if: failure()
         run: |
           docker compose ps -a
           docker compose logs --no-color \
-            postgres minio mlflow-db-init mlflow || true
+            postgres minio mlflow-db-init mlflow \
+            spark-ivy-init || true
 
-      - name: Stop MLflow infrastructure
+      - name: Stop ML infrastructure
         if: always()
         run: docker compose down -v --remove-orphans
