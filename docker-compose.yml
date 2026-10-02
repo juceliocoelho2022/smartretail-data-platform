@@ -293,6 +293,19 @@ services:
       minio:
         condition: service_healthy
 
+
+  spark-ivy-init:
+    image: alpine:3.22
+    container_name: smartretail-spark-ivy-init
+    command:
+      - /bin/sh
+      - -c
+      - >-
+        mkdir -p /ivy/cache /ivy/jars &&
+        chmod -R 0777 /ivy
+    volumes:
+      - smartretail-spark-ivy:/ivy
+
   airflow:
     build:
       context: ./orchestration/airflow
@@ -316,6 +329,10 @@ services:
 
     command:
       - standalone
+
+    depends_on:
+      spark-ivy-init:
+        condition: service_completed_successfully
 
 volumes:
   smartretail-postgres-data:
