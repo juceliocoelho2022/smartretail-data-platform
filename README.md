@@ -37,9 +37,9 @@ As releases v0.1 e v0.2 já implementam uma fatia vertical completa: ingestão t
 >
 > ✅ Bronze implementada e validada com Spark + MinIO + Parquet  
 > ✅ Silver implementada e validada com Spark + Parquet  
-> ✅ 5 testes automatizados da camada Silver  
-> 🚧 Gold Analytics em implementação  
-> ⏳ Apache Iceberg será o próximo incremento estrutural
+> ✅ Gold implementada e validada com Spark + Parquet  
+> ✅ 10 testes PySpark validados  
+> 🚧 Apache Iceberg é o próximo incremento estrutural
 
 ---
 
@@ -189,7 +189,7 @@ Parquet + MinIO
     ↓
 Gold
 Analytics Data Products
-🚧 Em implementação
+✅ Implementada
 ```
 
 ### Bronze — implementada ✅
@@ -314,16 +314,18 @@ Ran 5 tests in 47.436s
 OK
 ```
 
-### Gold — em implementação 🚧
+### Gold — implementada ✅
 
-A Gold será derivada exclusivamente da Silver e disponibilizará Data Products analíticos como:
+A Gold é derivada exclusivamente da Silver e disponibiliza Data Products analíticos reconstruíveis.
+
+Datasets:
 
 ```text
-orders-daily
-orders-summary
+s3a://smartretail-gold/orders-daily/
+s3a://smartretail-gold/orders-summary/
 ```
 
-KPIs planejados para este incremento:
+KPIs implementados:
 
 - total de pedidos;
 - total de itens;
@@ -331,15 +333,27 @@ KPIs planejados para este incremento:
 - ticket médio;
 - clientes únicos;
 - produtos únicos;
-- receita por data;
-- receita por canal;
+- vendas por data;
+- vendas por canal;
 - vendas por localização.
 
-Destino:
+A execução batch validada processou 4 pedidos, 12 itens e receita total de 2218.80, com ticket médio de 554.70.
+
+A escrita utiliza `overwrite` sobre datasets derivados, permitindo reconstrução idempotente da camada Gold a partir da Silver.
+
+### Testes PySpark ✅
+
+As transformações atuais totalizam 10 testes validados:
 
 ```text
-s3a://smartretail-gold/
+Streaming transforms: 3
+Silver:               5
+Gold:                 2
+------------------------
+Total:               10
 ```
+
+Todos concluíram com `OK`.
 
 ### Buckets do Lakehouse
 
@@ -368,11 +382,13 @@ O bucket `smartretail-warehouse` será utilizado na integração com Apache Iceb
 ### Próximos incrementos
 
 ```text
-Silver
+Bronze ✅
    ↓
-Gold Analytics
+Silver ✅
    ↓
-Apache Iceberg
+Gold ✅
+   ↓
+Apache Iceberg 🚧
    ↓
 Warehouse
 ```
@@ -752,18 +768,18 @@ Destino:
 s3a://smartretail-silver/orders/
 ```
 
-### Gold 🚧
+### Gold ✅
 
 Dados preparados para consumo analítico.
 
-Primeiros Data Products:
+Data Products implementados:
 
 ```text
 orders-daily
 orders-summary
 ```
 
-A Gold disponibilizará KPIs prontos para APIs, dashboards e futuros modelos de Machine Learning.
+A Gold disponibiliza KPIs prontos para futuras APIs, dashboards e modelos de Machine Learning.
 
 ### Iceberg ⏳
 
@@ -854,7 +870,7 @@ Princípios adotados:
 | CI | GitHub Actions |
 | Big Data | Apache Spark 4.0.1, PySpark, Structured Streaming |
 | Data Engineering | PySpark, Structured Streaming, S3A, Medallion Architecture; Airflow — v0.4 |
-| Lakehouse | MinIO/S3, Parquet, Bronze e Silver implementados; Gold em desenvolvimento; Iceberg próximo incremento |
+| Lakehouse | MinIO/S3, Parquet, Bronze, Silver e Gold implementados; Iceberg próximo incremento |
 | ML | MLflow — roadmap |
 | Frontend | React/Vite — roadmap |
 
