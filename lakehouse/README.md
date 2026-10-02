@@ -4,7 +4,7 @@ A v0.3 adiciona uma arquitetura de **Data Lakehouse** ao SmartRetail Data Platfo
 
 ## Status
 
-🚧 Em desenvolvimento
+✅ Concluída e validada
 
 Implementado:
 
@@ -234,14 +234,15 @@ A Gold é reconstruível a partir da Silver e utiliza escrita `overwrite` no est
 Suíte PySpark validada:
 
 ```text
-Streaming transforms: 3
-Silver:               5
-Gold:                 2
-------------------------
-Total:               10
+Streaming transforms:  3
+Silver:                5
+Gold:                  2
+Iceberg:               5
+-------------------------
+Total:                15
 ```
 
-Todos os testes concluíram com `OK`.
+Todos os testes concluíram com `OK`, incluindo a suíte Iceberg executada pelo `streaming-ci`.
 
 ## MinIO local
 
@@ -312,6 +313,14 @@ A Schema Evolution também foi validada com a criação de uma nova versão de m
 ```
 
 A evolução do schema não exigiu recriação da tabela nem reescrita dos dados históricos.
+
+Após a adição da coluna:
+
+```text
+dataQualityStatus STRING
+```
+
+o job Iceberg foi executado novamente com sucesso. Os 5 registros permaneceram disponíveis e a nova coluna foi preservada com valor `NULL` para os dados anteriores, comprovando compatibilidade com Schema Evolution em execuções posteriores.
 
 ## Princípio arquitetural
 
