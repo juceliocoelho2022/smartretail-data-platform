@@ -173,7 +173,10 @@ services:
       retries: 20
       start_period: 10s
 
-  spark-gold:
+  spark-gold
+    volumes:
+      - smartretail-spark-ivy:/tmp/.ivy2
+:
     image: smartretail-spark-jobs:0.4
     build:
       context: ./streaming/spark-streaming
@@ -211,7 +214,10 @@ services:
       minio:
         condition: service_healthy
 
-  spark-iceberg:
+  spark-iceberg
+    volumes:
+      - smartretail-spark-ivy:/tmp/.ivy2
+:
     image: smartretail-spark-jobs:0.4
     build:
       context: ./streaming/spark-streaming
@@ -258,7 +264,10 @@ services:
         condition: service_healthy
 
 
-  spark-data-quality:
+  spark-data-quality
+    volumes:
+      - smartretail-spark-ivy:/tmp/.ivy2
+:
     image: smartretail-spark-jobs:0.4
     build:
       context: ./streaming/spark-streaming
