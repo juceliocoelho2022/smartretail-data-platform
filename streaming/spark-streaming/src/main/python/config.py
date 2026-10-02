@@ -69,3 +69,38 @@ GOLD_SUMMARY_PATH = os.getenv(
     "GOLD_SUMMARY_PATH",
     "s3a://smartretail-gold/orders-summary"
 )
+
+ICEBERG_CATALOG_NAME = os.getenv(
+    "ICEBERG_CATALOG_NAME",
+    "smartretail"
+)
+
+ICEBERG_NAMESPACE = os.getenv(
+    "ICEBERG_NAMESPACE",
+    "lakehouse"
+)
+
+ICEBERG_TABLE = os.getenv(
+    "ICEBERG_TABLE",
+    "orders"
+)
+
+ICEBERG_WAREHOUSE = os.getenv(
+    "ICEBERG_WAREHOUSE",
+    "s3a://smartretail-warehouse/iceberg"
+)
+
+ICEBERG_JDBC_URI = os.getenv(
+    "ICEBERG_JDBC_URI",
+    "jdbc:postgresql://localhost:5433/smartretail"
+)
+
+ICEBERG_JDBC_USER = os.getenv(
+    "ICEBERG_JDBC_USER",
+    "smartretail"
+)
+
+ICEBERG_JDBC_PASSWORD = os.getenv(
+    "ICEBERG_JDBC_PASSWORD",
+    "smartretail"
+)
