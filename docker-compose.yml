@@ -1,3 +1,8 @@
+x-ml-job-defaults: &ml-job-defaults
+  image: smartretail-ml-jobs:0.6
+  build:
+    context: ./ml
+
 services:
 
   postgres:
@@ -17,6 +22,69 @@ services:
       timeout: 5s
       retries: 10
 
+  mlflow-db-init:
+    image: postgres:17-alpine
+    container_name: smartretail-mlflow-db-init
+    environment:
+      PGHOST: postgres
+      PGPORT: 5432
+      PGUSER: smartretail
+      PGPASSWORD: smartretail
+      PGDATABASE: smartretail
+    entrypoint:
+      - /bin/sh
+      - -c
+    command:
+      - |
+        until pg_isready -h postgres -U smartretail -d smartretail; do
+          sleep 2
+        done
+        if [ "$(psql -h postgres -U smartretail -d smartretail -tAc "SELECT 1 FROM pg_database WHERE datname='smartretail_mlflow'")" != "1" ]; then
+          psql -h postgres -U smartretail -d smartretail -v ON_ERROR_STOP=1 -c "CREATE DATABASE smartretail_mlflow"
+        fi
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  mlflow:
+    image: ghcr.io/mlflow/mlflow:v3.16.1-full
+    container_name: smartretail-mlflow
+    environment:
+      MLFLOW_S3_ENDPOINT_URL: http://minio:9000
+      AWS_ACCESS_KEY_ID: ${MINIO_ROOT_USER:-smartretail}
+      AWS_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD:-smartretail123}
+      AWS_DEFAULT_REGION: us-east-1
+    ports:
+      - "5000:5000"
+    command:
+      - mlflow
+      - server
+      - --backend-store-uri
+      - postgresql+psycopg2://smartretail:smartretail@postgres:5432/smartretail_mlflow
+      - --serve-artifacts
+      - --artifacts-destination
+      - s3://smartretail-mlflow
+      - --host
+      - 0.0.0.0
+      - --port
+      - "5000"
+    depends_on:
+      mlflow-db-init:
+        condition: service_completed_successfully
+      minio:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - import urllib.request; urllib.request.urlopen('http://localhost:5000/health', timeout=2)
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 15s
+
   kafka:
     image: apache/kafka:3.9.1
     container_name: smartretail-kafka
@@ -27,7 +95,7 @@ services:
       KAFKA_PROCESS_ROLES: broker,controller
       KAFKA_LISTENERS: CONTROLLER://:9093,PLAINTEXT://:29092,PLAINTEXT_HOST://:9092
       KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
-      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT_HOST:PLAINTEXT
       KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
       KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
       KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
@@ -180,6 +248,7 @@ services:
 
       spark-streaming:
         condition: service_started
+
   minio:
     image: soldevelo/minio:2025.10.15
     container_name: smartretail-minio
@@ -194,7 +263,8 @@ services:
         smartretail-bronze,
         smartretail-silver,
         smartretail-gold,
-        smartretail-warehouse
+        smartretail-warehouse,
+        smartretail-mlflow
 
     ports:
       - "9000:9000"
