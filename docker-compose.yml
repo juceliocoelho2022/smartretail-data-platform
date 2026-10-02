@@ -1,7 +1,29 @@
+x-ml-common-environment: &ml-common-environment
+  ML_HISTORY_SILVER_PATH: s3a://smartretail-silver/orders-ml-history
+  PRODUCT_DEMAND_GOLD_PATH: s3a://smartretail-gold/product-demand-daily
+  ML_FEATURES_PATH: s3a://smartretail-gold/ml/demand-features
+  ML_TRAINING_MANIFEST_PATH: s3a://smartretail-gold/ml/training-manifest
+  MLFLOW_TRACKING_URI: http://mlflow:5000
+  MODEL_NAME: smartretail-demand-forecast
+  FORECAST_HORIZON_DAYS: "7"
+  S3_ENDPOINT: http://minio:9000
+  S3_ACCESS_KEY: ${MINIO_ROOT_USER:-smartretail}
+  S3_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-smartretail123}
+  S3_REGION: us-east-1
+  PYSPARK_PYTHON: python3
+  PYSPARK_DRIVER_PYTHON: python3
+
 x-ml-job-defaults: &ml-job-defaults
   image: smartretail-ml-jobs:0.6
   build:
     context: ./ml
+  volumes:
+    - smartretail-spark-ivy:/tmp/.ivy2
+  depends_on:
+    minio:
+      condition: service_healthy
+    spark-ivy-init:
+      condition: service_completed_successfully
 
 services:
 
@@ -84,6 +106,49 @@ services:
       timeout: 5s
       retries: 20
       start_period: 15s
+
+  ml-history:
+    <<: *ml-job-defaults
+    environment:
+      <<: *ml-common-environment
+    command:
+      - /opt/spark/bin/spark-submit
+      - --master
+      - local[*]
+      - --conf
+      - spark.jars.ivy=/tmp/.ivy2
+      - --packages
+      - org.apache.hadoop:hadoop-aws:3.4.1,org.postgresql:postgresql:42.7.13
+      - /opt/spark/work-dir/ml-src/main/python/historical_data_app.py
+
+  ml-product-demand:
+    <<: *ml-job-defaults
+    environment:
+      <<: *ml-common-environment
+      SILVER_PATH: s3a://smartretail-silver/orders-ml-history
+    command:
+      - /opt/spark/bin/spark-submit
+      - --master
+      - local[*]
+      - --conf
+      - spark.jars.ivy=/tmp/.ivy2
+      - --packages
+      - org.apache.hadoop:hadoop-aws:3.4.1,org.postgresql:postgresql:42.7.13
+      - /opt/spark/work-dir/ml-src/main/python/product_demand_app.py
+
+  ml-features:
+    <<: *ml-job-defaults
+    environment:
+      <<: *ml-common-environment
+    command:
+      - /opt/spark/bin/spark-submit
+      - --master
+      - local[*]
+      - --conf
+      - spark.jars.ivy=/tmp/.ivy2
+      - --packages
+      - org.apache.hadoop:hadoop-aws:3.4.1,org.postgresql:postgresql:42.7.13
+      - /opt/spark/work-dir/ml-src/main/python/demand_features_app.py
 
   kafka:
     image: apache/kafka:3.9.1
