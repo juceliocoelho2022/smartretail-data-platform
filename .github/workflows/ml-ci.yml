@@ -72,6 +72,12 @@ jobs:
           docker compose run --rm ml-product-demand
           docker compose run --rm ml-features
 
+      - name: Train and validate demand champion
+        run: |
+          docker compose run --rm ml-train
+          docker compose run --rm ml-register
+          docker compose run --rm ml-validate-champion
+
       - name: Show ML diagnostics on failure
         if: failure()
         run: |
