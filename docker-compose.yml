@@ -86,5 +86,42 @@ services:
       kafka:
         condition: service_started
 
+
+  minio:
+    image: minio/minio:latest
+    container_name: smartretail-minio
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-smartretail}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-smartretail123}
+    command: server /data --console-address ":9001"
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - smartretail-minio-data:/data
+
+  minio-init:
+    image: minio/mc:latest
+    container_name: smartretail-minio-init
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-smartretail}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-smartretail123}
+    depends_on:
+      minio:
+        condition: service_started
+    entrypoint: >
+      /bin/sh -c "
+      until mc alias set smartretail http://minio:9000 $MINIO_ROOT_USER $MINIO_ROOT_PASSWORD; do
+        echo 'Waiting for MinIO...';
+        sleep 2;
+      done;
+      mc mb --ignore-existing smartretail/smartretail-bronze;
+      mc mb --ignore-existing smartretail/smartretail-silver;
+      mc mb --ignore-existing smartretail/smartretail-gold;
+      mc mb --ignore-existing smartretail/smartretail-warehouse;
+      echo 'SmartRetail Lakehouse buckets are ready.';
+      "
+
 volumes:
   smartretail-postgres-data:
+  smartretail-minio-data:
