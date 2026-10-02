@@ -10,7 +10,7 @@ from docker.types import Mount
 
 SPARK_IMAGE = os.getenv(
     "SMARTRETAIL_SPARK_IMAGE",
-    "smartretail-spark-jobs:0.4",
+    "smartretail-spark-jobs:0.5",
 )
 
 DOCKER_NETWORK = os.getenv(
@@ -50,6 +50,18 @@ COMMON_ENVIRONMENT = {
     ),
     "ICEBERG_JDBC_USER": "smartretail",
     "ICEBERG_JDBC_PASSWORD": "smartretail",
+    "ANALYTICS_JDBC_URL": (
+        "jdbc:postgresql://postgres:5432/"
+        "smartretail"
+    ),
+    "ANALYTICS_JDBC_USER": "smartretail",
+    "ANALYTICS_JDBC_PASSWORD": "smartretail",
+    "ANALYTICS_SUMMARY_TABLE": (
+        "analytics.sales_summary"
+    ),
+    "ANALYTICS_DAILY_TABLE": (
+        "analytics.sales_daily"
+    ),
     "S3_ENDPOINT": "http://minio:9000",
     "S3_ACCESS_KEY": S3_ACCESS_KEY,
     "S3_SECRET_KEY": S3_SECRET_KEY,
@@ -66,6 +78,13 @@ HADOOP_PACKAGES = (
 ICEBERG_PACKAGES = (
     "org.apache.iceberg:"
     "iceberg-spark-runtime-4.0_2.13:1.11.0,"
+    "org.apache.hadoop:"
+    "hadoop-aws:3.4.1,"
+    "org.postgresql:"
+    "postgresql:42.7.13"
+)
+
+JDBC_PACKAGES = (
     "org.apache.hadoop:"
     "hadoop-aws:3.4.1,"
     "org.postgresql:"
@@ -141,9 +160,10 @@ def spark_task(
     max_active_runs=1,
     tags=[
         "smartretail",
-        "v0.4",
+        "v0.5",
         "lakehouse",
         "data-quality",
+        "analytics-serving",
     ],
 )
 def smartretail_lakehouse_pipeline():
@@ -174,11 +194,20 @@ def smartretail_lakehouse_pipeline():
         packages=ICEBERG_PACKAGES,
     )
 
+    publish_analytics = spark_task(
+        task_id="publish_analytics",
+        script_name=(
+            "analytics_export_app.py"
+        ),
+        packages=JDBC_PACKAGES,
+    )
+
     (
         data_quality
         >> gold
         >> iceberg
         >> validate
+        >> publish_analytics
     )
 
 

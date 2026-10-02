@@ -1,0 +1,32 @@
+name: analytics-ci
+
+on:
+  push:
+    paths:
+      - "backend/analytics-api/**"
+      - ".github/workflows/analytics-ci.yml"
+
+  pull_request:
+    paths:
+      - "backend/analytics-api/**"
+      - ".github/workflows/analytics-ci.yml"
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Java 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+          cache-dependency-path: backend/analytics-api/pom.xml
+
+      - name: Verify Analytics API
+        working-directory: backend/analytics-api
+        run: mvn -B verify
