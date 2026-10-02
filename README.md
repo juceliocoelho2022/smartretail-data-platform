@@ -1,7 +1,7 @@
 # 🛒 SmartRetail Data Platform
 
 <p align="center">
-  <strong>Plataforma orientada a eventos para varejo, construída com Java, Kafka, PostgreSQL e evolução planejada para Big Data, Lakehouse, Analytics e IA.</strong>
+  <strong>Plataforma orientada a eventos para varejo, construída com Java, Kafka, Spark e PostgreSQL, evoluindo para Lakehouse, Analytics e IA.</strong>
 </p>
 
 <p align="center">
@@ -13,9 +13,12 @@
   <img alt="Spring Boot 3.5.5" src="https://img.shields.io/badge/Spring%20Boot-3.5.5-6DB33F?logo=springboot&logoColor=white">
   <img alt="Apache Kafka 3.9.1" src="https://img.shields.io/badge/Apache%20Kafka-3.9.1-231F20?logo=apachekafka&logoColor=white">
   <img alt="PostgreSQL 17" src="https://img.shields.io/badge/PostgreSQL-17-4169E1?logo=postgresql&logoColor=white">
+  <img alt="Apache Spark 4.0.1" src="https://img.shields.io/badge/Apache%20Spark-4.0.1-E25A1C?logo=apachespark&logoColor=white">
   <img alt="Docker" src="https://img.shields.io/badge/Docker-Compose-2496ED?logo=docker&logoColor=white">
-  <img alt="CI" src="https://github.com/juceliocoelho2022/smartretail-data-platform/actions/workflows/backend-ci.yml/badge.svg?branch=main">
-  <img alt="v0.1" src="https://img.shields.io/badge/v0.1-Event%20Platform%20conclu%C3%ADda-2EA44F">
+  <img alt="Backend CI" src="https://github.com/juceliocoelho2022/smartretail-data-platform/actions/workflows/backend-ci.yml/badge.svg?branch=main">
+  <img alt="Streaming CI" src="https://github.com/juceliocoelho2022/smartretail-data-platform/actions/workflows/streaming-ci.yml/badge.svg?branch=main">
+  <img alt="v0.2" src="https://img.shields.io/badge/v0.2-Streaming%20conclu%C3%ADdo-2EA44F">
+  <img alt="v0.3" src="https://img.shields.io/badge/v0.3-Lakehouse%20em%20desenvolvimento-F59E0B">
 </p>
 
 ---
@@ -28,10 +31,15 @@ O objetivo é demonstrar, de forma incremental, o ciclo completo do dado:
 
 **geração → ingestão → streaming → processamento → armazenamento → qualidade → analytics → machine learning → consumo**
 
-A primeira release funcional já implementa uma fatia vertical completa de ingestão e processamento assíncrono de pedidos.
+As releases v0.1 e v0.2 já implementam uma fatia vertical completa: ingestão transacional, publicação no Kafka e processamento analítico em tempo real com Spark Structured Streaming.
 
-> **Status atual:** ✅ **v0.1 — Event Platform concluída, validada localmente de ponta a ponta e aprovada pelo CI.**  
-> **Próxima etapa:** v0.2 — Spark Structured Streaming.
+> **Status atual:** 🚧 **v0.3 — Data Lakehouse em desenvolvimento.**
+>
+> ✅ Bronze implementada e validada com Spark + MinIO + Parquet  
+> ✅ Silver implementada e validada com Spark + Parquet  
+> ✅ Gold implementada e validada com Spark + Parquet  
+> ✅ 10 testes PySpark validados  
+> 🚧 Apache Iceberg é o próximo incremento estrutural
 
 ---
 
@@ -80,6 +88,312 @@ A v0.1 implementa uma arquitetura orientada a eventos com consistência transaci
 - testes automatizados
 - relatório de cobertura com JaCoCo
 - CI com Java 21 e Maven
+
+---
+
+
+## ✅ v0.2 — Streaming Analytics
+
+A v0.2 conecta o tópico de pedidos ao **Apache Spark Structured Streaming** e transforma eventos em métricas de vendas em tempo real.
+
+### Tecnologias implementadas
+
+- Apache Spark 4.0.1
+- PySpark
+- Kafka Source
+- Python
+- Docker / Linux runtime
+- `unittest`
+- GitHub Actions
+
+### Capacidades implementadas
+
+- consumo do tópico `smartretail.orders.v1`;
+- parsing tipado do contrato JSON;
+- conversão de `occurredAt` em event time;
+- watermark de 2 minutos;
+- tumbling window de 1 minuto;
+- agrupamento por canal;
+- contagem de pedidos;
+- soma de itens;
+- cálculo de receita;
+- checkpoints do Structured Streaming;
+- execução reproduzível em Docker;
+- testes automatizados das transformações;
+- workflow `streaming-ci.yml`.
+
+### Fluxo validado
+
+```text
+Spring Boot
+    ↓
+Transactional Outbox
+    ↓
+Kafka
+    ↓
+Spark Structured Streaming
+    ↓
+Event Time + Watermark
+    ↓
+1-minute Tumbling Window
+    ↓
+orders + items + revenue
+```
+
+Exemplo validado:
+
+```text
+channel = WEB
+orders  = 1
+items   = 3
+revenue = 599.70
+```
+
+A suíte PySpark executada no runtime Spark concluiu:
+
+```text
+Ran 3 tests
+OK
+```
+
+---
+
+## 🚧 v0.3 — Data Lakehouse
+
+A v0.3 adiciona persistência analítica ao SmartRetail Data Platform utilizando **MinIO compatível com S3, Apache Spark, PySpark, Hadoop S3A, Parquet e Medallion Architecture**.
+
+### Arquitetura atual
+
+```text
+Spring Boot
+    ↓
+Transactional Outbox
+    ↓
+Apache Kafka
+    ↓
+Spark Structured Streaming
+    ↓
+Bronze
+Raw Kafka Events
+Parquet + MinIO
+    ↓
+Spark Silver
+    ↓
+Parsing + Typing
+Validation + Normalization
+Deduplication
+    ↓
+Silver
+Trusted Orders
+Parquet + MinIO
+    ↓
+Gold
+Analytics Data Products
+✅ Implementada
+```
+
+### Bronze — implementada ✅
+
+O Spark Structured Streaming consome o tópico:
+
+```text
+smartretail.orders.v1
+```
+
+e persiste os eventos brutos em:
+
+```text
+s3a://smartretail-bronze/orders/
+```
+
+A Bronze preserva informações importantes para auditoria e reprocessamento:
+
+- payload JSON original;
+- chave Kafka;
+- tópico;
+- partição;
+- offset;
+- timestamp Kafka;
+- timestamp de ingestão;
+- data de ingestão.
+
+Os dados são armazenados em **Parquet com compressão Snappy** e particionados por:
+
+```text
+ingestionDate=YYYY-MM-DD
+```
+
+Exemplo validado:
+
+```text
+smartretail-bronze/
+└── orders/
+    ├── _spark_metadata/
+    └── ingestionDate=2026-10-02/
+        └── part-....snappy.parquet
+```
+
+### Silver — implementada ✅
+
+A Silver lê exclusivamente os dados da Bronze:
+
+```text
+s3a://smartretail-bronze/orders/
+```
+
+e grava dados confiáveis em:
+
+```text
+s3a://smartretail-silver/orders/
+```
+
+Transformações realizadas:
+
+```text
+Raw JSON
+   ↓
+Schema
+   ↓
+Typing
+   ↓
+Validation
+   ↓
+Normalization
+   ↓
+Revenue Calculation
+   ↓
+Deduplication
+   ↓
+Silver
+```
+
+Regras implementadas:
+
+- parsing do JSON;
+- aplicação de schema explícito;
+- conversão de `occurredAt` para timestamp;
+- `eventId` obrigatório;
+- `customerId` obrigatório;
+- `productId` obrigatório;
+- `quantity > 0`;
+- `unitPrice >= 0`;
+- normalização de `channel`;
+- normalização de `location`;
+- cálculo de `revenue`;
+- criação de `eventDate`;
+- deduplicação por `eventId`;
+- preservação dos metadados Kafka.
+
+Os dados Silver são particionados por:
+
+```text
+eventDate=YYYY-MM-DD
+```
+
+Exemplo:
+
+```text
+smartretail-silver/
+└── orders/
+    ├── _spark_metadata/
+    ├── eventDate=2026-10-01/
+    │   └── part-....snappy.parquet
+    └── eventDate=2026-10-02/
+        └── part-....snappy.parquet
+```
+
+### Testes Silver ✅
+
+A camada Silver possui testes automatizados para parsing, normalização, cálculo de receita, validação de quantidade e preço, JSON malformado e deduplicação por `eventId`.
+
+Resultado validado:
+
+```text
+Ran 5 tests in 47.436s
+
+OK
+```
+
+### Gold — implementada ✅
+
+A Gold é derivada exclusivamente da Silver e disponibiliza Data Products analíticos reconstruíveis.
+
+Datasets:
+
+```text
+s3a://smartretail-gold/orders-daily/
+s3a://smartretail-gold/orders-summary/
+```
+
+KPIs implementados:
+
+- total de pedidos;
+- total de itens;
+- receita total;
+- ticket médio;
+- clientes únicos;
+- produtos únicos;
+- vendas por data;
+- vendas por canal;
+- vendas por localização.
+
+A execução batch validada processou 4 pedidos, 12 itens e receita total de 2218.80, com ticket médio de 554.70.
+
+A escrita utiliza `overwrite` sobre datasets derivados, permitindo reconstrução idempotente da camada Gold a partir da Silver.
+
+### Testes PySpark ✅
+
+As transformações atuais totalizam 10 testes validados:
+
+```text
+Streaming transforms: 3
+Silver:               5
+Gold:                 2
+------------------------
+Total:               10
+```
+
+Todos concluíram com `OK`.
+
+### Buckets do Lakehouse
+
+```text
+smartretail-bronze
+smartretail-silver
+smartretail-gold
+smartretail-warehouse
+```
+
+O bucket `smartretail-warehouse` será utilizado na integração com Apache Iceberg.
+
+### Stack da v0.3
+
+- Apache Spark 4.0.1
+- PySpark
+- Spark Structured Streaming
+- MinIO / S3 API
+- Hadoop AWS / S3A
+- Parquet
+- Snappy
+- Medallion Architecture
+- Docker Compose
+- Python `unittest`
+
+### Próximos incrementos
+
+```text
+Bronze ✅
+   ↓
+Silver ✅
+   ↓
+Gold ✅
+   ↓
+Apache Iceberg 🚧
+   ↓
+Warehouse
+```
+
+O Apache Iceberg acrescentará posteriormente tabelas gerenciadas, snapshots, atomic commits, schema evolution e time travel.
 
 ---
 
@@ -184,7 +498,7 @@ git clone https://github.com/juceliocoelho2022/smartretail-data-platform.git
 cd smartretail-data-platform
 ```
 
-### Subir PostgreSQL, Kafka e API
+### Subir PostgreSQL, Kafka, API, Spark e MinIO
 
 ```bash
 docker compose up --build
@@ -194,9 +508,13 @@ docker compose up --build
 
 | Componente | Porta |
 |---|---:|
-| API Spring Boot | `8080` |
+| Spring Boot API | `8080` |
 | PostgreSQL | `5433` |
 | Kafka | `9092` |
+| Spark Streaming / Bronze UI | `4040` |
+| Spark Silver UI | `4041` |
+| MinIO S3 API | `9000` |
+| MinIO Console | `9001` |
 
 Dentro da rede Docker, o PostgreSQL continua disponível na porta interna `5432`.
 
@@ -314,27 +632,16 @@ Cobertura atual é utilizada como instrumento de inspeção. O quality gate mín
 
 ## ⚙️ CI — GitHub Actions
 
-O workflow:
+Os workflows principais são:
 
 ```text
 .github/workflows/backend-ci.yml
+.github/workflows/streaming-ci.yml
 ```
 
-executa:
+O backend executa Java 21 + Maven + `mvn -B verify`. O streaming configura Java/Python, instala PySpark, executa a suíte de transformações e valida o Docker Compose.
 
-```text
-Checkout
-   ↓
-Java 21
-   ↓
-Maven
-   ↓
-mvn -B verify
-   ↓
-Testes + JaCoCo
-```
-
-A v0.1 foi integrada à `main` após o pipeline concluir com sucesso.
+As releases v0.1 e v0.2 foram integradas à `main` após seus pipelines concluírem com sucesso.
 
 ---
 
@@ -384,7 +691,7 @@ Real-time KPIs      Bronze → Silver → Gold
           Dashboard React
 ```
 
-Os componentes além da Event Platform serão implementados incrementalmente nas próximas releases.
+A Event Platform (v0.1) e o Streaming Analytics (v0.2) já estão implementados. A camada Lakehouse (v0.3) está em desenvolvimento.
 
 ---
 
@@ -414,37 +721,73 @@ A plataforma evoluirá para responder perguntas como:
 
 ---
 
-## 🏞️ Data Lakehouse — roadmap
+## 🏞️ Data Lakehouse — v0.3 em desenvolvimento
 
-A evolução analítica utilizará Medallion Architecture.
+A v0.3 implementa a **Medallion Architecture** sobre MinIO/S3.
 
-### Bronze
+### Bronze ✅
 
-Dados brutos e imutáveis para rastreabilidade e reprocessamento.
-
-### Silver
-
-Dados tratados, deduplicados, normalizados e enriquecidos.
-
-### Gold
-
-Dados preparados para consumo analítico, por exemplo:
+Dados brutos e imutáveis provenientes do Kafka.
 
 ```text
-sales_daily
-sales_by_region
-customer_360
-product_performance
-inventory_risk
-sales_forecast
+Kafka
+ ↓
+Spark Structured Streaming
+ ↓
+s3a://smartretail-bronze/orders/
 ```
 
-Tecnologias planejadas:
+Finalidade:
 
-- MinIO / AWS S3
-- Apache Iceberg
-- Parquet
-- PySpark
+- auditoria;
+- replay;
+- rastreabilidade;
+- reconstrução das camadas posteriores.
+
+### Silver ✅
+
+Dados tratados e confiáveis derivados da Bronze.
+
+```text
+Bronze
+ ↓
+Parse
+ ↓
+Validation
+ ↓
+Normalization
+ ↓
+Deduplication
+ ↓
+Silver
+```
+
+Destino:
+
+```text
+s3a://smartretail-silver/orders/
+```
+
+### Gold ✅
+
+Dados preparados para consumo analítico.
+
+Data Products implementados:
+
+```text
+orders-daily
+orders-summary
+```
+
+A Gold disponibiliza KPIs prontos para futuras APIs, dashboards e modelos de Machine Learning.
+
+### Iceberg ⏳
+
+O próximo incremento adicionará Apache Iceberg sobre o bucket:
+
+```text
+smartretail-warehouse
+```
 
 ---
 
@@ -525,9 +868,9 @@ Princípios adotados:
 | Testes | JUnit 5, Mockito, MockMvc, JaCoCo |
 | Containers | Docker, Docker Compose |
 | CI | GitHub Actions |
-| Big Data | Apache Spark — próxima release |
-| Data Engineering | PySpark, Airflow — roadmap |
-| Lakehouse | MinIO/S3, Iceberg, Parquet — roadmap |
+| Big Data | Apache Spark 4.0.1, PySpark, Structured Streaming |
+| Data Engineering | PySpark, Structured Streaming, S3A, Medallion Architecture; Airflow — v0.4 |
+| Lakehouse | MinIO/S3, Parquet, Bronze, Silver e Gold implementados; Iceberg próximo incremento |
 | ML | MLflow — roadmap |
 | Frontend | React/Vite — roadmap |
 
@@ -545,6 +888,13 @@ smartretail-data-platform/
 │       ├── src/test/java/
 │       ├── Dockerfile
 │       └── pom.xml
+├── streaming/
+│   └── spark-streaming/
+│       ├── src/main/python/
+│       ├── src/test/python/
+│       └── README.md
+├── lakehouse/
+│   └── README.md
 ├── docs/
 │   ├── assets/
 │   ├── API_EXAMPLES.md
@@ -553,7 +903,8 @@ smartretail-data-platform/
 │   └── V0.1_IMPLEMENTATION.md
 ├── .github/
 │   └── workflows/
-│       └── backend-ci.yml
+│       ├── backend-ci.yml
+│       └── streaming-ci.yml
 ├── .env.example
 ├── docker-compose.yml
 ├── LICENSE
@@ -569,8 +920,8 @@ A estrutura cresce junto com as releases; o repositório não apresenta componen
 | Release | Entrega | Status |
 |---|---|---|
 | **v0.1** | Event Platform — Spring Boot + Kafka + PostgreSQL + Docker | ✅ Concluída |
-| **v0.2** | Streaming Analytics — Spark Structured Streaming | 🔜 Próxima |
-| **v0.3** | Data Lakehouse — MinIO/S3 + Bronze/Silver/Gold + Iceberg | ⏳ Planejada |
+| **v0.2** | Streaming Analytics — Spark Structured Streaming | ✅ Concluída |
+| **v0.3** | Data Lakehouse — MinIO/S3 + Bronze/Silver/Gold + Iceberg | 🚧 Em desenvolvimento |
 | **v0.4** | Data Engineering — Airflow + PySpark + Data Quality | ⏳ Planejada |
 | **v0.5** | Analytics — API + Dashboard React | ⏳ Planejada |
 | **v0.6** | AI — MLflow + previsão de demanda + anomalias | ⏳ Planejada |
@@ -579,13 +930,29 @@ A estrutura cresce junto com as releases; o repositório não apresenta componen
 
 ## 🎓 Competências demonstradas
 
-A v0.1 já demonstra, na prática:
+As releases v0.1 e v0.2 e os incrementos já validados da v0.3 demonstram, na prática:
 
 - desenvolvimento backend com Java 21;
 - Spring Boot;
 - desenho de APIs REST;
 - arquitetura orientada a eventos;
 - Apache Kafka;
+- Apache Spark Structured Streaming;
+- PySpark;
+- event time, watermark e janelas;
+- processamento de métricas em tempo real;
+- Data Lakehouse;
+- Medallion Architecture;
+- MinIO / S3;
+- Hadoop S3A;
+- Parquet;
+- camada Bronze para eventos brutos e reprocessáveis;
+- camada Silver para dados confiáveis;
+- parsing e schema explícito;
+- normalização de dados;
+- deduplicação de eventos;
+- Data Quality;
+- testes automatizados de pipelines PySpark;
 - Transactional Outbox;
 - idempotência;
 - processamento assíncrono;
