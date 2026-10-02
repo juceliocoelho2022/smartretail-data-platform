@@ -38,8 +38,10 @@ As releases v0.1 e v0.2 já implementam uma fatia vertical completa: ingestão t
 > ✅ Bronze implementada e validada com Spark + MinIO + Parquet  
 > ✅ Silver implementada e validada com Spark + Parquet  
 > ✅ Gold implementada e validada com Spark + Parquet  
-> ✅ 10 testes PySpark validados  
-> 🚧 Apache Iceberg é o próximo incremento estrutural
+> ✅ 10 testes PySpark das camadas Streaming/Silver/Gold validados  
+> ✅ Apache Iceberg integrado e validado com JDBC Catalog + MinIO  
+> ✅ Snapshots e Time Travel validados: 4 → 5 registros  
+> ✅ Schema Evolution validada sem recriar a tabela
 
 ---
 
@@ -364,7 +366,7 @@ smartretail-gold
 smartretail-warehouse
 ```
 
-O bucket `smartretail-warehouse` será utilizado na integração com Apache Iceberg.
+O bucket `smartretail-warehouse` armazena a tabela Apache Iceberg e seus arquivos de dados e metadata. O catálogo JDBC utiliza o PostgreSQL para registrar namespaces e tabelas.
 
 ### Stack da v0.3
 
@@ -378,8 +380,50 @@ O bucket `smartretail-warehouse` será utilizado na integração com Apache Iceb
 - Medallion Architecture
 - Docker Compose
 - Python `unittest`
+- Apache Iceberg 1.11.0
+- Iceberg JDBC Catalog
+- PostgreSQL Catalog
+- Iceberg snapshots e time travel
+- Iceberg schema evolution
 
-### Próximos incrementos
+### Apache Iceberg — implementado e validado ✅
+
+A Silver alimenta uma tabela Iceberg gerenciada:
+
+```text
+smartretail.lakehouse.orders
+```
+
+Warehouse:
+
+```text
+s3a://smartretail-warehouse/iceberg
+```
+
+Catálogo:
+
+```text
+Apache Iceberg JDBC Catalog
+        ↓
+PostgreSQL
+├── iceberg_namespace_properties
+└── iceberg_tables
+```
+
+O warehouse no MinIO contém arquivos Parquet e metadata Iceberg versionada.
+
+Validações realizadas:
+
+- criação da tabela Iceberg a partir da Silver;
+- particionamento por `days(occurredAt)`;
+- criação de snapshots;
+- atualização da tabela com `INSERT OVERWRITE`;
+- Time Travel por `VERSION AS OF`;
+- Snapshot anterior com 4 registros;
+- estado atual com 5 registros;
+- Schema Evolution com adição de coluna sem recriar a tabela;
+- nova versão de metadata `00002-....metadata.json`;
+- preservação de colunas evoluídas em execuções posteriores do job.
 
 ```text
 Bronze ✅
@@ -388,12 +432,13 @@ Silver ✅
    ↓
 Gold ✅
    ↓
-Apache Iceberg 🚧
-   ↓
-Warehouse
+Apache Iceberg ✅
+   ├── JDBC Catalog ✅
+   ├── Snapshots ✅
+   ├── Time Travel ✅
+   └── Schema Evolution ✅
 ```
 
-O Apache Iceberg acrescentará posteriormente tabelas gerenciadas, snapshots, atomic commits, schema evolution e time travel.
 
 ---
 
@@ -781,13 +826,15 @@ orders-summary
 
 A Gold disponibiliza KPIs prontos para futuras APIs, dashboards e modelos de Machine Learning.
 
-### Iceberg ⏳
+### Iceberg ✅
 
-O próximo incremento adicionará Apache Iceberg sobre o bucket:
+A tabela `smartretail.lakehouse.orders` utiliza Apache Iceberg com catálogo JDBC no PostgreSQL e warehouse no MinIO:
 
 ```text
-smartretail-warehouse
+s3a://smartretail-warehouse/iceberg
 ```
+
+Foram validados snapshots, Time Travel e Schema Evolution.
 
 ---
 
@@ -870,7 +917,7 @@ Princípios adotados:
 | CI | GitHub Actions |
 | Big Data | Apache Spark 4.0.1, PySpark, Structured Streaming |
 | Data Engineering | PySpark, Structured Streaming, S3A, Medallion Architecture; Airflow — v0.4 |
-| Lakehouse | MinIO/S3, Parquet, Bronze, Silver e Gold implementados; Iceberg próximo incremento |
+| Lakehouse | MinIO/S3, Parquet, Bronze, Silver, Gold e Apache Iceberg com JDBC Catalog, snapshots, Time Travel e Schema Evolution |
 | ML | MLflow — roadmap |
 | Frontend | React/Vite — roadmap |
 
@@ -946,6 +993,10 @@ As releases v0.1 e v0.2 e os incrementos já validados da v0.3 demonstram, na pr
 - MinIO / S3;
 - Hadoop S3A;
 - Parquet;
+- Schema Evolution;
+- snapshots e Time Travel;
+- Iceberg JDBC Catalog;
+- Apache Iceberg;
 - camada Bronze para eventos brutos e reprocessáveis;
 - camada Silver para dados confiáveis;
 - parsing e schema explícito;
