@@ -44,6 +44,10 @@ def build_demand_features(
             F.stddev_samp("unitsSold").over(rolling_7),
         )
         .withColumn(
+            "historyCount28",
+            F.count("unitsSold").over(rolling_28),
+        )
+        .withColumn(
             "dayOfWeek",
             F.dayofweek("eventDate"),
         )
@@ -77,14 +81,18 @@ def build_demand_features(
         "rollingStd7",
     )
 
-    valid_history = F.lit(True)
+    valid_history = F.col("historyCount28") == F.lit(28)
     for column_name in required_history_columns:
         valid_history = (
             valid_history
             & F.col(column_name).isNotNull()
         )
 
-    return features.filter(valid_history)
+    return (
+        features
+        .filter(valid_history)
+        .drop("historyCount28")
+    )
 
 
 def chronological_split(
