@@ -1,7 +1,7 @@
 # 🛒 SmartRetail Data Platform
 
 <p align="center">
-  <strong>Plataforma orientada a eventos para varejo, construída com Java, Kafka, PostgreSQL e evolução planejada para Big Data, Lakehouse, Analytics e IA.</strong>
+  <strong>Plataforma orientada a eventos para varejo, construída com Java, Kafka, Spark e PostgreSQL, evoluindo para Lakehouse, Analytics e IA.</strong>
 </p>
 
 <p align="center">
@@ -80,6 +80,89 @@ A v0.1 implementa uma arquitetura orientada a eventos com consistência transaci
 - testes automatizados
 - relatório de cobertura com JaCoCo
 - CI com Java 21 e Maven
+
+---
+
+
+## ✅ v0.2 — Streaming Analytics
+
+A v0.2 conecta o tópico de pedidos ao **Apache Spark Structured Streaming** e transforma eventos em métricas de vendas em tempo real.
+
+### Tecnologias implementadas
+
+- Apache Spark 4.0.1
+- PySpark
+- Kafka Source
+- Python
+- Docker / Linux runtime
+- `unittest`
+- GitHub Actions
+
+### Capacidades implementadas
+
+- consumo do tópico `smartretail.orders.v1`;
+- parsing tipado do contrato JSON;
+- conversão de `occurredAt` em event time;
+- watermark de 2 minutos;
+- tumbling window de 1 minuto;
+- agrupamento por canal;
+- contagem de pedidos;
+- soma de itens;
+- cálculo de receita;
+- checkpoints do Structured Streaming;
+- execução reproduzível em Docker;
+- testes automatizados das transformações;
+- workflow `streaming-ci.yml`.
+
+### Fluxo validado
+
+```text
+Spring Boot
+    ↓
+Transactional Outbox
+    ↓
+Kafka
+    ↓
+Spark Structured Streaming
+    ↓
+Event Time + Watermark
+    ↓
+1-minute Tumbling Window
+    ↓
+orders + items + revenue
+```
+
+Exemplo validado:
+
+```text
+channel = WEB
+orders  = 1
+items   = 3
+revenue = 599.70
+```
+
+A suíte PySpark executada no runtime Spark concluiu:
+
+```text
+Ran 3 tests
+OK
+```
+
+---
+
+## 🚧 v0.3 — Data Lakehouse
+
+A v0.3 inicia a persistência analítica da plataforma com **MinIO compatível com S3** e Medallion Architecture.
+
+Primeiro incremento desta branch:
+
+- serviço MinIO no Docker Compose;
+- MinIO Console;
+- provisionamento automático dos buckets `smartretail-bronze`, `smartretail-silver`, `smartretail-gold` e `smartretail-warehouse`;
+- configuração local documentada no `.env.example`;
+- desenho inicial do Lakehouse em [lakehouse/README.md](lakehouse/README.md).
+
+Próximos incrementos: escrita do Spark na Bronze, Parquet, integração com Apache Iceberg e pipelines Bronze → Silver → Gold.
 
 ---
 
@@ -184,7 +267,7 @@ git clone https://github.com/juceliocoelho2022/smartretail-data-platform.git
 cd smartretail-data-platform
 ```
 
-### Subir PostgreSQL, Kafka e API
+### Subir PostgreSQL, Kafka, API, Spark e MinIO
 
 ```bash
 docker compose up --build
@@ -196,7 +279,7 @@ docker compose up --build
 |---|---:|
 | API Spring Boot | `8080` |
 | PostgreSQL | `5433` |
-| Kafka | `9092` |
+| Kafka | `9092` |\n| Spark UI | `4040` |\n| MinIO S3 API | `9000` |\n| MinIO Console | `9001` |
 
 Dentro da rede Docker, o PostgreSQL continua disponível na porta interna `5432`.
 
@@ -384,7 +467,7 @@ Real-time KPIs      Bronze → Silver → Gold
           Dashboard React
 ```
 
-Os componentes além da Event Platform serão implementados incrementalmente nas próximas releases.
+A Event Platform (v0.1) e o Streaming Analytics (v0.2) já estão implementados. A camada Lakehouse (v0.3) está em desenvolvimento.
 
 ---
 
