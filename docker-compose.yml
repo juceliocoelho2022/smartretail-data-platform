@@ -150,6 +150,73 @@ services:
       - org.apache.hadoop:hadoop-aws:3.4.1,org.postgresql:postgresql:42.7.13
       - /opt/spark/work-dir/ml-src/main/python/demand_features_app.py
 
+  ml-train:
+    <<: *ml-job-defaults
+    environment:
+      <<: *ml-common-environment
+    depends_on:
+      minio:
+        condition: service_healthy
+      mlflow:
+        condition: service_healthy
+      spark-ivy-init:
+        condition: service_completed_successfully
+    command:
+      - /opt/spark/bin/spark-submit
+      - --master
+      - local[*]
+      - --conf
+      - spark.jars.ivy=/tmp/.ivy2
+      - --packages
+      - org.apache.hadoop:hadoop-aws:3.4.1,org.postgresql:postgresql:42.7.13
+      - /opt/spark/work-dir/ml-src/main/python/demand_training_app.py
+      - --phase
+      - train
+
+  ml-register:
+    <<: *ml-job-defaults
+    environment:
+      <<: *ml-common-environment
+    depends_on:
+      minio:
+        condition: service_healthy
+      mlflow:
+        condition: service_healthy
+      spark-ivy-init:
+        condition: service_completed_successfully
+    command:
+      - /opt/spark/bin/spark-submit
+      - --master
+      - local[*]
+      - --conf
+      - spark.jars.ivy=/tmp/.ivy2
+      - --packages
+      - org.apache.hadoop:hadoop-aws:3.4.1,org.postgresql:postgresql:42.7.13
+      - /opt/spark/work-dir/ml-src/main/python/demand_training_app.py
+      - --phase
+      - evaluate-register
+
+  ml-validate-champion:
+    <<: *ml-job-defaults
+    environment:
+      <<: *ml-common-environment
+    depends_on:
+      minio:
+        condition: service_healthy
+      mlflow:
+        condition: service_healthy
+      spark-ivy-init:
+        condition: service_completed_successfully
+    command:
+      - /opt/spark/bin/spark-submit
+      - --master
+      - local[*]
+      - --conf
+      - spark.jars.ivy=/tmp/.ivy2
+      - --packages
+      - org.apache.hadoop:hadoop-aws:3.4.1,org.postgresql:postgresql:42.7.13
+      - /opt/spark/work-dir/ml-src/main/python/champion_validation_app.py
+
   kafka:
     image: apache/kafka:3.9.1
     container_name: smartretail-kafka
