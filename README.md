@@ -19,6 +19,7 @@
   <img alt="Streaming CI" src="https://github.com/juceliocoelho2022/smartretail-data-platform/actions/workflows/streaming-ci.yml/badge.svg?branch=main">
   <img alt="v0.2" src="https://img.shields.io/badge/v0.2-Streaming%20conclu%C3%ADdo-2EA44F">
   <img alt="v0.3" src="https://img.shields.io/badge/v0.3-Lakehouse%20conclu%C3%ADdo-2EA44F">
+  <img alt="v0.4" src="https://img.shields.io/badge/v0.4-Airflow%20%2B%20Data%20Quality-2EA44F">
 </p>
 
 ---
@@ -33,15 +34,14 @@ O objetivo é demonstrar, de forma incremental, o ciclo completo do dado:
 
 As releases v0.1 e v0.2 já implementam uma fatia vertical completa: ingestão transacional, publicação no Kafka e processamento analítico em tempo real com Spark Structured Streaming.
 
-> **Status atual:** ✅ **v0.3 — Data Lakehouse concluída e validada.**
+> **Status atual:** ✅ **v0.4 — Data Engineering com Airflow e Data Quality concluída e validada.**
 >
-> ✅ Bronze implementada e validada com Spark + MinIO + Parquet  
-> ✅ Silver implementada e validada com Spark + Parquet  
-> ✅ Gold implementada e validada com Spark + Parquet  
-> ✅ 15 testes PySpark validados nas camadas Streaming, Silver, Gold e Iceberg  
-> ✅ Apache Iceberg integrado e validado com JDBC Catalog + MinIO  
-> ✅ Snapshots e Time Travel validados: 4 → 5 registros  
-> ✅ Schema Evolution validada sem recriar a tabela
+> ✅ DAG real `smartretail_lakehouse_pipeline` executada de ponta a ponta  
+> ✅ Data Quality Gate da Silver aprovado com 5 registros válidos  
+> ✅ Gold reconstruída pelo Airflow  
+> ✅ Apache Iceberg atualizado pelo Airflow  
+> ✅ Validação pós-carga confirmou Silver = Iceberg = Gold = 5 pedidos  
+> ✅ Execução completa do DAG finalizada com `state=success`
 
 ---
 
@@ -455,6 +455,100 @@ Apache Iceberg ✅
 
 ---
 
+## ✅ v0.4 — Data Engineering com Airflow + Data Quality
+
+A v0.4 adiciona uma camada explícita de **orquestração, qualidade e validação pós-carga** sobre o Lakehouse já construído na v0.3.
+
+### DAG de produção
+
+```text
+smartretail_lakehouse_pipeline
+
+silver_data_quality
+        ↓
+build_gold
+        ↓
+refresh_iceberg
+        ↓
+post_load_validation
+```
+
+O Airflow executa cada etapa batch em um container Spark isolado por meio de `DockerOperator`.
+
+A ingestão Kafka/Bronze e a Silver Structured Streaming permanecem como fluxos contínuos. A DAG v0.4 coordena os jobs batch finitos que dependem da Silver já materializada.
+
+### Data Quality Gate ✅
+
+O job `data_quality_app.py` valida invariantes da camada Silver antes de liberar as etapas seguintes:
+
+- `eventId` não nulo;
+- `customerId` não nulo;
+- `productId` não nulo;
+- `quantity > 0`;
+- `unitPrice >= 0`;
+- ausência de duplicidade.
+
+Execução E2E validada:
+
+```text
+Silver Data Quality gate: PASSED
+totalRows=5
+nullEventId=0
+nullCustomerId=0
+nullProductId=0
+invalidQuantity=0
+invalidUnitPrice=0
+duplicateRows=0
+```
+
+### Gold orquestrada ✅
+
+A DAG reconstruiu os Data Products Gold a partir da Silver:
+
+```text
+totalOrders=5
+totalItems=14
+totalRevenue=2918.60
+averageOrderValue=583.72
+uniqueCustomers=4
+uniqueProducts=4
+```
+
+### Iceberg Refresh ✅
+
+A etapa `refresh_iceberg` executa o job Iceberg já validado na v0.3, mantendo o catálogo JDBC no PostgreSQL e o warehouse no MinIO.
+
+A estratégia atual de atualização continua sendo `INSERT OVERWRITE` sobre a tabela Iceberg; `MERGE INTO` incremental permanece fora do escopo desta release.
+
+### Post-load Validation ✅
+
+O job final compara as contagens entre as camadas:
+
+```text
+Post-load validation: PASSED
+Silver rows=5
+Iceberg rows=5
+Gold totalOrders=5
+```
+
+O DAG completo terminou com `state=success`, confirmando a cadeia Airflow → DockerOperator → Spark → MinIO/PostgreSQL de ponta a ponta.
+
+### Stack da v0.4
+
+- Apache Airflow 3.3.2
+- DockerOperator
+- Apache Spark 4.0.1
+- PySpark
+- Data Quality Gate
+- MinIO / S3A
+- Apache Iceberg
+- PostgreSQL JDBC Catalog
+- Docker Compose
+- GitHub Actions
+
+
+---
+
 ## 🔄 Fluxo validado de ponta a ponta
 
 ```text
@@ -749,7 +843,7 @@ Real-time KPIs      Bronze → Silver → Gold
           Dashboard React
 ```
 
-A Event Platform (v0.1), o Streaming Analytics (v0.2) e o Data Lakehouse (v0.3) estão implementados e validados.
+A Event Platform (v0.1), o Streaming Analytics (v0.2), o Data Lakehouse (v0.3) e a orquestração/Data Quality (v0.4) estão implementados e validados.
 
 ---
 
@@ -851,19 +945,22 @@ Foram validados snapshots, Time Travel e Schema Evolution.
 
 ---
 
-## 🔁 Data Engineering — roadmap
+## 🔁 Data Engineering — v0.4 concluída
 
-A camada de engenharia de dados deverá evoluir com:
+A v0.4 implementa:
 
-- Apache Airflow
-- PySpark
-- Data Quality
-- retries
-- scheduling
-- SLAs
-- logs
-- alertas
-- pipelines Bronze → Silver → Gold
+- Apache Airflow;
+- DAG de produção para jobs batch do Lakehouse;
+- DockerOperator para execução isolada de jobs Spark;
+- Data Quality Gate sobre a Silver;
+- bloqueio do pipeline quando uma regra de qualidade falha;
+- reconstrução da Gold;
+- refresh da tabela Iceberg;
+- validação pós-carga entre Silver, Gold e Iceberg;
+- cache Ivy compartilhado para dependências Spark;
+- execução reproduzível com Docker Compose.
+
+Evoluções futuras incluem retries por política de negócio, SLAs, alertas operacionais e observabilidade específica do Airflow.
 
 ---
 
@@ -929,7 +1026,7 @@ Princípios adotados:
 | Containers | Docker, Docker Compose |
 | CI | GitHub Actions |
 | Big Data | Apache Spark 4.0.1, PySpark, Structured Streaming |
-| Data Engineering | PySpark, Structured Streaming, S3A, Medallion Architecture; Airflow — v0.4 |
+| Data Engineering | PySpark, Structured Streaming, S3A, Medallion Architecture, Apache Airflow 3.3.2, DockerOperator, Data Quality |
 | Lakehouse | MinIO/S3, Parquet, Bronze, Silver, Gold e Apache Iceberg com JDBC Catalog, snapshots, Time Travel e Schema Evolution |
 | ML | MLflow — roadmap |
 | Frontend | React/Vite — roadmap |
@@ -955,6 +1052,14 @@ smartretail-data-platform/
 │       └── README.md
 ├── lakehouse/
 │   └── README.md
+├── orchestration/
+│   └── airflow/
+│       ├── dags/
+│       │   ├── smartretail_airflow_smoke.py
+│       │   └── smartretail_lakehouse_pipeline.py
+│       ├── Dockerfile
+│       ├── requirements.txt
+│       └── README.md
 ├── docs/
 │   ├── assets/
 │   ├── API_EXAMPLES.md
@@ -982,7 +1087,7 @@ A estrutura cresce junto com as releases; o repositório não apresenta componen
 | **v0.1** | Event Platform — Spring Boot + Kafka + PostgreSQL + Docker | ✅ Concluída |
 | **v0.2** | Streaming Analytics — Spark Structured Streaming | ✅ Concluída |
 | **v0.3** | Data Lakehouse — MinIO/S3 + Bronze/Silver/Gold + Iceberg | ✅ Concluída |
-| **v0.4** | Data Engineering — Airflow + PySpark + Data Quality | ⏳ Planejada |
+| **v0.4** | Data Engineering — Airflow + PySpark + Data Quality | ✅ Concluída |
 | **v0.5** | Analytics — API + Dashboard React | ⏳ Planejada |
 | **v0.6** | AI — MLflow + previsão de demanda + anomalias | ⏳ Planejada |
 
@@ -990,7 +1095,7 @@ A estrutura cresce junto com as releases; o repositório não apresenta componen
 
 ## 🎓 Competências demonstradas
 
-As releases v0.1 e v0.2 e os incrementos já validados da v0.3 demonstram, na prática:
+As releases v0.1, v0.2, v0.3 e v0.4 demonstram, na prática:
 
 - desenvolvimento backend com Java 21;
 - Spring Boot;
@@ -1016,6 +1121,10 @@ As releases v0.1 e v0.2 e os incrementos já validados da v0.3 demonstram, na pr
 - normalização de dados;
 - deduplicação de eventos;
 - Data Quality;
+- Apache Airflow;
+- DAGs de orquestração;
+- DockerOperator;
+- validação pós-carga entre Silver, Gold e Iceberg;
 - testes automatizados de pipelines PySpark;
 - Transactional Outbox;
 - idempotência;

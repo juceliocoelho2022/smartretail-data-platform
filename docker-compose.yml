@@ -174,7 +174,10 @@ services:
       start_period: 10s
 
   spark-gold:
-    image: apache/spark:4.0.1-java21-python3
+    image: smartretail-spark-jobs:0.4
+    build:
+      context: ./streaming/spark-streaming
+      dockerfile: Dockerfile.jobs
     container_name: smartretail-spark-gold
 
     environment:
@@ -209,7 +212,10 @@ services:
         condition: service_healthy
 
   spark-iceberg:
-    image: apache/spark:4.0.1-java21-python3
+    image: smartretail-spark-jobs:0.4
+    build:
+      context: ./streaming/spark-streaming
+      dockerfile: Dockerfile.jobs
     container_name: smartretail-spark-iceberg
 
     environment:
@@ -251,6 +257,90 @@ services:
       postgres:
         condition: service_healthy
 
+
+  spark-data-quality:
+    image: smartretail-spark-jobs:0.4
+    build:
+      context: ./streaming/spark-streaming
+      dockerfile: Dockerfile.jobs
+    container_name: smartretail-spark-data-quality
+
+    environment:
+      SILVER_PATH: s3a://smartretail-silver/orders
+
+      S3_ENDPOINT: http://minio:9000
+      S3_ACCESS_KEY: ${MINIO_ROOT_USER:-smartretail}
+      S3_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-smartretail123}
+      S3_REGION: us-east-1
+
+      PYSPARK_PYTHON: python3
+      PYSPARK_DRIVER_PYTHON: python3
+
+    volumes:
+      - ./streaming/spark-streaming/src:/opt/spark/work-dir/src:ro
+
+    command:
+      - /opt/spark/bin/spark-submit
+      - --master
+      - local[*]
+      - --conf
+      - spark.jars.ivy=/tmp/.ivy2
+      - --packages
+      - org.apache.hadoop:hadoop-aws:3.4.1
+      - /opt/spark/work-dir/src/main/python/data_quality_app.py
+
+    depends_on:
+      minio:
+        condition: service_healthy
+
+
+  spark-ivy-init:
+    image: alpine:3.22
+    container_name: smartretail-spark-ivy-init
+    command:
+      - /bin/sh
+      - -c
+      - >-
+        mkdir -p /ivy/cache /ivy/jars &&
+        chmod -R 0777 /ivy
+    volumes:
+      - smartretail-spark-ivy:/ivy
+
+  airflow:
+    build:
+      context: ./orchestration/airflow
+    container_name: smartretail-airflow
+
+    environment:
+      AIRFLOW_HOME: /opt/airflow
+      AIRFLOW__CORE__LOAD_EXAMPLES: "false"
+      SMARTRETAIL_SPARK_IMAGE: smartretail-spark-jobs:0.4
+      SMARTRETAIL_DOCKER_NETWORK: smartretail-network
+      SMARTRETAIL_S3_ACCESS_KEY: ${MINIO_ROOT_USER:-smartretail}
+      SMARTRETAIL_S3_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-smartretail123}
+
+    ports:
+      - "8081:8080"
+
+    volumes:
+      - smartretail-airflow-data:/opt/airflow
+      - ./orchestration/airflow/dags:/opt/airflow/dags:ro
+      - /var/run/docker.sock:/var/run/docker.sock
+
+    command:
+      - standalone
+
+    depends_on:
+      spark-ivy-init:
+        condition: service_completed_successfully
+
 volumes:
   smartretail-postgres-data:
   smartretail-minio-data:
+  smartretail-airflow-data:
+  smartretail-spark-ivy:
+    name: smartretail-spark-ivy
+
+networks:
+  default:
+    name: smartretail-network

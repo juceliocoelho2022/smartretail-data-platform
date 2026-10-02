@@ -5,11 +5,13 @@ on:
     paths:
       - "streaming/spark-streaming/**"
       - "docker-compose.yml"
+      - "orchestration/airflow/**"
       - ".github/workflows/streaming-ci.yml"
   pull_request:
     paths:
       - "streaming/spark-streaming/**"
       - "docker-compose.yml"
+      - "orchestration/airflow/**"
       - ".github/workflows/streaming-ci.yml"
 
 jobs:
@@ -47,6 +49,11 @@ jobs:
             -s streaming/spark-streaming/src/test/python \
             -p "test_*.py" \
             -v
+
+      - name: Validate Airflow DAG syntax
+        run: |
+          python -m py_compile \
+            orchestration/airflow/dags/*.py
 
       - name: Validate Docker Compose
         run: docker compose config
