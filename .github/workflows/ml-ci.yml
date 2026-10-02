@@ -4,10 +4,14 @@ on:
   push:
     paths:
       - "ml/**"
+      - "docker-compose.yml"
+      - ".env.example"
       - ".github/workflows/ml-ci.yml"
   pull_request:
     paths:
       - "ml/**"
+      - "docker-compose.yml"
+      - ".env.example"
       - ".github/workflows/ml-ci.yml"
 
 jobs:
@@ -19,7 +23,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Setup Java 21
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: "21"
@@ -51,3 +55,24 @@ jobs:
 
       - name: Build ML jobs image
         run: docker build -t smartretail-ml-jobs:0.6 ./ml
+
+      - name: Validate Docker Compose
+        run: docker compose config --quiet
+
+      - name: Start MLflow infrastructure
+        run: |
+          docker compose up -d --wait --wait-timeout 180 \
+            postgres minio mlflow
+          curl --fail --silent --show-error \
+            http://localhost:5000/health
+
+      - name: Show MLflow diagnostics on failure
+        if: failure()
+        run: |
+          docker compose ps -a
+          docker compose logs --no-color \
+            postgres minio mlflow-db-init mlflow || true
+
+      - name: Stop MLflow infrastructure
+        if: always()
+        run: docker compose down -v --remove-orphans
