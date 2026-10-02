@@ -104,3 +104,29 @@ ICEBERG_JDBC_PASSWORD = os.getenv(
     "ICEBERG_JDBC_PASSWORD",
     "smartretail"
 )
+
+
+ANALYTICS_JDBC_URL = os.getenv(
+    "ANALYTICS_JDBC_URL",
+    "jdbc:postgresql://localhost:5433/smartretail"
+)
+
+ANALYTICS_JDBC_USER = os.getenv(
+    "ANALYTICS_JDBC_USER",
+    "smartretail"
+)
+
+ANALYTICS_JDBC_PASSWORD = os.getenv(
+    "ANALYTICS_JDBC_PASSWORD",
+    "smartretail"
+)
+
+ANALYTICS_SUMMARY_TABLE = os.getenv(
+    "ANALYTICS_SUMMARY_TABLE",
+    "analytics.sales_summary"
+)
+
+ANALYTICS_DAILY_TABLE = os.getenv(
+    "ANALYTICS_DAILY_TABLE",
+    "analytics.sales_daily"
+)
