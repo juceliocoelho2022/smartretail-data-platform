@@ -84,11 +84,7 @@ def truncate_serving_tables(
         "org.postgresql.Driver"
     )
 
-    driver = (
-        driver_class
-        .getDeclaredConstructor()
-        .newInstance()
-    )
+    driver = driver_class.newInstance()
 
     properties = jvm.java.util.Properties()
     properties.setProperty(
