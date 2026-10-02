@@ -1,91 +1,284 @@
 # SmartRetail Lakehouse — v0.3
 
-A v0.3 adiciona a camada de **Data Lakehouse** ao SmartRetail Data Platform.
+A v0.3 adiciona uma arquitetura de **Data Lakehouse** ao SmartRetail Data Platform utilizando MinIO/S3, Apache Spark, PySpark e Parquet.
 
 ## Status
 
 🚧 Em desenvolvimento
 
-Primeiro incremento:
+Implementado:
 
-- MinIO compatível com API S3
-- console web do MinIO
-- provisionamento automático de buckets
-- separação Bronze / Silver / Gold
-- bucket dedicado ao warehouse do Apache Iceberg
+- MinIO compatível com S3;
+- buckets Bronze, Silver, Gold e Warehouse;
+- Kafka → Bronze;
+- Bronze em Parquet;
+- Bronze → Silver;
+- parsing, tipagem, validação e normalização;
+- deduplicação por `eventId`;
+- Silver em Parquet;
+- Silver → Gold;
+- Data Products analíticos Gold;
+- testes automatizados PySpark.
+
+Próximo incremento:
+
+- Apache Iceberg.
 
 ## Arquitetura
 
 ```text
 Spring Boot
-    |
-    v
+    │
+    ▼
 Apache Kafka
-    |
-    v
+    │
+    ▼
 Spark Structured Streaming
-    |
-    +--------------------+
-    |                    |
-    v                    v
-Real-time metrics     MinIO / S3
-                         |
-                         v
-                    Bronze Layer
-                         |
-                         v
-                    Silver Layer
-                         |
-                         v
-                     Gold Layer
-                         |
-                         v
-                 Apache Iceberg
+    │
+    ▼
+Bronze
+Raw Kafka Events
+Parquet
+    │
+    ▼
+Spark Silver
+    │
+    ├── parsing
+    ├── typing
+    ├── validation
+    ├── normalization
+    └── deduplication
+    │
+    ▼
+Silver
+Trusted Orders
+Parquet
+    │
+    ▼
+Spark Gold
+    │
+    ├── aggregations
+    └── KPIs
+    │
+    ▼
+Gold
+Analytics Data Products
+    │
+    ▼
+Apache Iceberg
+🚧 Próximo incremento
 ```
 
 ## Buckets
 
 | Camada | Bucket | Finalidade |
 |---|---|---|
-| Bronze | `smartretail-bronze` | eventos brutos e reprocessáveis |
-| Silver | `smartretail-silver` | dados tratados, tipados e deduplicados |
-| Gold | `smartretail-gold` | datasets e KPIs para consumo analítico |
-| Warehouse | `smartretail-warehouse` | tabelas e metadados do Iceberg |
+| Bronze | `smartretail-bronze` | eventos brutos, auditáveis e reprocessáveis |
+| Silver | `smartretail-silver` | dados tipados, validados, normalizados e deduplicados |
+| Gold | `smartretail-gold` | KPIs e Data Products analíticos |
+| Warehouse | `smartretail-warehouse` | warehouse futuro do Apache Iceberg |
+
+## Bronze
+
+Origem:
+
+```text
+smartretail.orders.v1
+```
+
+Destino:
+
+```text
+s3a://smartretail-bronze/orders/
+```
+
+A Bronze preserva:
+
+```text
+payload
+kafkaKey
+kafkaTopic
+kafkaPartition
+kafkaOffset
+kafkaTimestamp
+ingestedAt
+ingestionDate
+```
+
+Particionamento:
+
+```text
+ingestionDate=YYYY-MM-DD
+```
+
+## Silver
+
+Origem:
+
+```text
+s3a://smartretail-bronze/orders/
+```
+
+Destino:
+
+```text
+s3a://smartretail-silver/orders/
+```
+
+Transformações:
+
+```text
+JSON
+ ↓
+Schema
+ ↓
+Typing
+ ↓
+Validation
+ ↓
+Normalization
+ ↓
+Revenue calculation
+ ↓
+Deduplication
+ ↓
+Silver
+```
+
+Qualidade aplicada:
+
+- `eventId` obrigatório;
+- `occurredAt` válido;
+- `customerId` obrigatório;
+- `productId` obrigatório;
+- `quantity > 0`;
+- `unitPrice >= 0`;
+- normalização de `channel`;
+- normalização de `location`;
+- deduplicação por `eventId`.
+
+Particionamento:
+
+```text
+eventDate=YYYY-MM-DD
+```
+
+## Gold
+
+Origem:
+
+```text
+s3a://smartretail-silver/orders/
+```
+
+Datasets:
+
+```text
+s3a://smartretail-gold/orders-daily/
+s3a://smartretail-gold/orders-summary/
+```
+
+### orders-daily
+
+Granularidade:
+
+```text
+eventDate + channel + location
+```
+
+Métricas:
+
+```text
+totalOrders
+totalItems
+totalRevenue
+averageOrderValue
+```
+
+### orders-summary
+
+Métricas:
+
+```text
+totalOrders
+totalItems
+totalRevenue
+averageOrderValue
+uniqueCustomers
+uniqueProducts
+```
+
+Execução validada:
+
+```text
+totalOrders       = 4
+totalItems        = 12
+totalRevenue      = 2218.80
+averageOrderValue = 554.70
+uniqueCustomers   = 3
+uniqueProducts    = 3
+```
+
+A Gold é reconstruível a partir da Silver e utiliza escrita `overwrite` no estágio atual baseado em Parquet.
+
+## Testes
+
+Suíte PySpark validada:
+
+```text
+Streaming transforms: 3
+Silver:               5
+Gold:                 2
+------------------------
+Total:               10
+```
+
+Todos os testes concluíram com `OK`.
 
 ## MinIO local
 
-Subir somente a infraestrutura do Lakehouse:
+Subir o MinIO:
 
 ```bash
-docker compose up -d minio minio-init
+docker compose up -d minio
 ```
 
-Verificar:
-
-```bash
-docker compose ps
-```
-
-### Endpoints
+Endpoints:
 
 | Serviço | Endereço |
 |---|---|
 | S3 API | `http://localhost:9000` |
 | MinIO Console | `http://localhost:9001` |
 
-As credenciais locais de desenvolvimento estão documentadas no arquivo `.env.example`. Não devem ser substituídas por credenciais reais no repositório.
+As credenciais locais de desenvolvimento estão documentadas no arquivo `.env.example`.
 
-## Próximos incrementos da v0.3
+## Spark UI
 
-1. conectar Spark ao endpoint S3 do MinIO;
-2. persistir eventos Kafka na camada Bronze em Parquet;
-3. introduzir Apache Iceberg;
-4. criar transformações Bronze → Silver;
-5. criar agregações Silver → Gold;
-6. adicionar testes de leitura/escrita e idempotência;
-7. adicionar CI específico do Lakehouse;
-8. documentar reprocessamento e evolução de schema.
+| Processo | Endereço |
+|---|---|
+| Streaming / Bronze | `http://localhost:4040` |
+| Silver | `http://localhost:4041` |
 
-## Princípio
+A Gold é um job batch e encerra após gerar os datasets.
 
-A camada Bronze preserva o evento original. As camadas posteriores derivam dados confiáveis sem eliminar a possibilidade de auditoria e reprocessamento.
+## Próximo incremento — Apache Iceberg
+
+A próxima evolução adicionará:
+
+- Iceberg Catalog;
+- warehouse no MinIO;
+- tabelas Iceberg;
+- schema evolution;
+- snapshots;
+- time travel;
+- atomic commits.
+
+## Princípio arquitetural
+
+```text
+Bronze = verdade bruta
+Silver = verdade confiável
+Gold   = informação para consumo
+```
+
+As camadas posteriores permanecem reconstruíveis a partir das anteriores.
