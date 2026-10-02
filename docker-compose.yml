@@ -207,6 +207,50 @@ services:
     depends_on:
       minio:
         condition: service_healthy
+
+  spark-iceberg:
+    image: apache/spark:4.0.1-java21-python3
+    container_name: smartretail-spark-iceberg
+
+    environment:
+      SILVER_PATH: s3a://smartretail-silver/orders
+
+      ICEBERG_CATALOG_NAME: smartretail
+      ICEBERG_NAMESPACE: lakehouse
+      ICEBERG_TABLE: orders
+      ICEBERG_WAREHOUSE: s3a://smartretail-warehouse/iceberg
+
+      ICEBERG_JDBC_URI: jdbc:postgresql://postgres:5432/smartretail
+      ICEBERG_JDBC_USER: smartretail
+      ICEBERG_JDBC_PASSWORD: smartretail
+
+      S3_ENDPOINT: http://minio:9000
+      S3_ACCESS_KEY: ${MINIO_ROOT_USER:-smartretail}
+      S3_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-smartretail123}
+      S3_REGION: us-east-1
+
+      PYSPARK_PYTHON: python3
+      PYSPARK_DRIVER_PYTHON: python3
+
+    volumes:
+      - ./streaming/spark-streaming/src:/opt/spark/work-dir/src:ro
+
+    command:
+      - /opt/spark/bin/spark-submit
+      - --master
+      - local[*]
+      - --conf
+      - spark.jars.ivy=/tmp/.ivy2
+      - --packages
+      - org.apache.iceberg:iceberg-spark-runtime-4.0_2.13:1.11.0,org.apache.hadoop:hadoop-aws:3.4.1,org.postgresql:postgresql:42.7.13
+      - /opt/spark/work-dir/src/main/python/iceberg_app.py
+
+    depends_on:
+      minio:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+
 volumes:
   smartretail-postgres-data:
   smartretail-minio-data:
