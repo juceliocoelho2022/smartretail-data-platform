@@ -62,7 +62,7 @@ services:
       DB_URL: jdbc:postgresql://postgres:5432/smartretail
       DB_USER: smartretail
       DB_PASSWORD: smartretail
-      FRONTEND_ORIGIN: http://localhost:5173
+      FRONTEND_ORIGINS: http://localhost:5173,http://localhost:3000
     ports:
       - "8082:8082"
     depends_on:
@@ -78,6 +78,18 @@ services:
       timeout: 5s
       retries: 20
       start_period: 15s
+
+  analytics-dashboard:
+    build:
+      context: ./frontend/analytics-dashboard
+      args:
+        VITE_API_URL: http://localhost:8082
+    container_name: smartretail-analytics-dashboard
+    ports:
+      - "3000:80"
+    depends_on:
+      analytics-api:
+        condition: service_healthy
 
   spark-streaming:
     image: apache/spark:4.0.1-java21-python3
