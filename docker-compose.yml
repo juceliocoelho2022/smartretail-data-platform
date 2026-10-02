@@ -174,7 +174,10 @@ services:
       start_period: 10s
 
   spark-gold:
-    image: apache/spark:4.0.1-java21-python3
+    image: smartretail-spark-jobs:0.4
+    build:
+      context: ./streaming/spark-streaming
+      dockerfile: Dockerfile.jobs
     container_name: smartretail-spark-gold
 
     environment:
@@ -209,7 +212,10 @@ services:
         condition: service_healthy
 
   spark-iceberg:
-    image: apache/spark:4.0.1-java21-python3
+    image: smartretail-spark-jobs:0.4
+    build:
+      context: ./streaming/spark-streaming
+      dockerfile: Dockerfile.jobs
     container_name: smartretail-spark-iceberg
 
     environment:
@@ -253,7 +259,10 @@ services:
 
 
   spark-data-quality:
-    image: apache/spark:4.0.1-java21-python3
+    image: smartretail-spark-jobs:0.4
+    build:
+      context: ./streaming/spark-streaming
+      dockerfile: Dockerfile.jobs
     container_name: smartretail-spark-data-quality
 
     environment:
@@ -292,6 +301,10 @@ services:
     environment:
       AIRFLOW_HOME: /opt/airflow
       AIRFLOW__CORE__LOAD_EXAMPLES: "false"
+      SMARTRETAIL_SPARK_IMAGE: smartretail-spark-jobs:0.4
+      SMARTRETAIL_DOCKER_NETWORK: smartretail-network
+      SMARTRETAIL_S3_ACCESS_KEY: ${MINIO_ROOT_USER:-smartretail}
+      SMARTRETAIL_S3_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-smartretail123}
 
     ports:
       - "8081:8080"
@@ -299,6 +312,7 @@ services:
     volumes:
       - smartretail-airflow-data:/opt/airflow
       - ./orchestration/airflow/dags:/opt/airflow/dags:ro
+      - /var/run/docker.sock:/var/run/docker.sock
 
     command:
       - standalone
@@ -307,3 +321,9 @@ volumes:
   smartretail-postgres-data:
   smartretail-minio-data:
   smartretail-airflow-data:
+  smartretail-spark-ivy:
+    name: smartretail-spark-ivy
+
+networks:
+  default:
+    name: smartretail-network
