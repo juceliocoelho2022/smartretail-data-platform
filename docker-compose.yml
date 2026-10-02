@@ -306,3 +306,4 @@ services:
 volumes:
   smartretail-postgres-data:
   smartretail-minio-data:
+  smartretail-airflow-data:
