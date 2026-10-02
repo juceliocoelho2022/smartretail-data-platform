@@ -1,4 +1,5 @@
-from pyspark.sql import SparkSession
+from pyspark.sql import DataFrame, SparkSession
+from pyspark.sql.functions import lit
 
 from config import (
     ICEBERG_CATALOG_NAME,
@@ -120,6 +121,33 @@ def namespace_identifier() -> str:
     )
 
 
+def align_source_to_target(
+    source: DataFrame,
+    target: DataFrame
+) -> DataFrame:
+    aligned = source
+
+    source_columns = set(
+        source.columns
+    )
+
+    for field in target.schema.fields:
+        if field.name not in source_columns:
+            aligned = aligned.withColumn(
+                field.name,
+                lit(None).cast(
+                    field.dataType
+                )
+            )
+
+    return aligned.select(
+        *[
+            field.name
+            for field in target.schema.fields
+        ]
+    )
+
+
 def table_exists(
     spark: SparkSession
 ) -> bool:
@@ -234,10 +262,6 @@ def main():
         f"{silver_orders.count()}"
     )
 
-    silver_orders.createOrReplaceTempView(
-        SOURCE_VIEW
-    )
-
     namespace = namespace_identifier()
     table = table_identifier()
 
@@ -252,6 +276,19 @@ def main():
             f"{table}"
         )
 
+        target_table = spark.table(
+            table
+        )
+
+        silver_orders = align_source_to_target(
+            silver_orders,
+            target_table
+        )
+
+        silver_orders.createOrReplaceTempView(
+            SOURCE_VIEW
+        )
+
         spark.sql(
             f"""
             INSERT OVERWRITE {table}
@@ -260,6 +297,9 @@ def main():
             """
         )
     else:
+        silver_orders.createOrReplaceTempView(
+            SOURCE_VIEW
+        )
         print(
             f"Creating Iceberg table: "
             f"{table}"
