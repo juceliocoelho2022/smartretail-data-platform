@@ -3,7 +3,7 @@ import os
 import sys
 import unittest
 from types import SimpleNamespace
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
 MAIN_PYTHON_DIR = os.path.abspath(
@@ -15,6 +15,7 @@ from demand_training import (
     CandidateResult,
     promote_selected_candidate,
     select_eligible_champion,
+    train_candidate_runs,
 )
 
 
@@ -72,6 +73,55 @@ class DemandTrainingPolicyTest(unittest.TestCase):
                 [nan_candidate, inf_candidate],
                 baseline_mae=5.0,
             )
+        )
+
+    @patch("demand_training.mlflow.spark.log_model")
+    @patch("demand_training.mlflow.log_metrics")
+    @patch("demand_training.mlflow.log_params")
+    @patch("demand_training.mlflow.start_run")
+    @patch("demand_training.evaluate_regression")
+    @patch("demand_training.build_candidate_pipelines")
+    def test_training_logs_spark_model_at_run_relative_artifact_path(
+        self,
+        build_candidate_pipelines,
+        evaluate_regression,
+        start_run,
+        log_params,
+        log_metrics,
+        log_model,
+    ):
+        pipeline = Mock()
+        model = Mock()
+        predictions = Mock()
+        pipeline.fit.return_value = model
+        model.transform.return_value = predictions
+        build_candidate_pipelines.return_value = {
+            "random_forest": pipeline
+        }
+        evaluate_regression.return_value = {
+            "mae": 1.0,
+            "rmse": 1.5,
+            "wape": 0.1,
+        }
+        start_run.return_value.__enter__.return_value = SimpleNamespace(
+            info=SimpleNamespace(run_id="rf-run")
+        )
+
+        results = train_candidate_runs(
+            Mock(),
+            Mock(),
+            baseline_metrics={
+                "mae": 2.0,
+                "rmse": 2.5,
+                "wape": 0.2,
+            },
+        )
+
+        self.assertEqual(len(results), 1)
+        self.assertEqual(results[0].run_id, "rf-run")
+        log_model.assert_called_once_with(
+            model,
+            artifact_path="model",
         )
 
     def test_existing_champion_is_untouched_when_no_candidate_qualifies(self):
