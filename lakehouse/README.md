@@ -20,9 +20,14 @@ Implementado:
 - Data Products analíticos Gold;
 - testes automatizados PySpark.
 
-Próximo incremento:
+Apache Iceberg validado:
 
-- Apache Iceberg.
+- JDBC Catalog no PostgreSQL;
+- warehouse no MinIO;
+- tabela `smartretail.lakehouse.orders`;
+- snapshots;
+- Time Travel;
+- Schema Evolution.
 
 ## Arquitetura
 
@@ -66,7 +71,10 @@ Analytics Data Products
     │
     ▼
 Apache Iceberg
-🚧 Próximo incremento
+✅ JDBC Catalog + MinIO
+✅ Snapshots
+✅ Time Travel
+✅ Schema Evolution
 ```
 
 ## Buckets
@@ -76,7 +84,7 @@ Apache Iceberg
 | Bronze | `smartretail-bronze` | eventos brutos, auditáveis e reprocessáveis |
 | Silver | `smartretail-silver` | dados tipados, validados, normalizados e deduplicados |
 | Gold | `smartretail-gold` | KPIs e Data Products analíticos |
-| Warehouse | `smartretail-warehouse` | warehouse futuro do Apache Iceberg |
+| Warehouse | `smartretail-warehouse` | dados e metadata da tabela Apache Iceberg |
 
 ## Bronze
 
@@ -261,17 +269,49 @@ As credenciais locais de desenvolvimento estão documentadas no arquivo `.env.ex
 
 A Gold é um job batch e encerra após gerar os datasets.
 
-## Próximo incremento — Apache Iceberg
+## Apache Iceberg ✅
 
-A próxima evolução adicionará:
+Tabela:
 
-- Iceberg Catalog;
-- warehouse no MinIO;
-- tabelas Iceberg;
-- schema evolution;
-- snapshots;
-- time travel;
-- atomic commits.
+```text
+smartretail.lakehouse.orders
+```
+
+Warehouse:
+
+```text
+s3a://smartretail-warehouse/iceberg
+```
+
+Catálogo JDBC:
+
+```text
+PostgreSQL
+├── iceberg_namespace_properties
+└── iceberg_tables
+```
+
+Evidências validadas:
+
+```text
+Snapshot 1: 4 registros
+Snapshot 2: 5 registros
+
+VERSION AS OF Snapshot 1 = 4
+Current table             = 5
+```
+
+O MinIO contém arquivos `metadata.json`, manifests Avro e arquivos de snapshot do Iceberg.
+
+A Schema Evolution também foi validada com a criação de uma nova versão de metadata:
+
+```text
+00000-....metadata.json
+00001-....metadata.json
+00002-....metadata.json
+```
+
+A evolução do schema não exigiu recriação da tabela nem reescrita dos dados históricos.
 
 ## Princípio arquitetural
 
