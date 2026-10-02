@@ -111,7 +111,7 @@ services:
         condition: service_started
     entrypoint: >
       /bin/sh -c "
-      until mc alias set smartretail http://minio:9000 $MINIO_ROOT_USER $MINIO_ROOT_PASSWORD; do
+      until mc alias set smartretail http://minio:9000 ${MINIO_ROOT_USER:-smartretail} ${MINIO_ROOT_PASSWORD:-smartretail123}; do
         echo 'Waiting for MinIO...';
         sleep 2;
       done;
