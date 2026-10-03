@@ -363,7 +363,7 @@ Pipeline
 End-to-End
 ```
 
-Ferramentas presentes no projeto incluem JUnit 5, Mockito, MockMvc, pytest e CI no GitHub Actions.
+Ferramentas presentes no projeto incluem JUnit 5, Mockito, MockMvc, Python `unittest` e CI no GitHub Actions.
 
 ## 15. Current implementation vs. roadmap
 
