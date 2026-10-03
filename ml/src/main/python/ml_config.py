@@ -35,6 +35,36 @@ FORECAST_HORIZON_DAYS = int(
     os.getenv("FORECAST_HORIZON_DAYS", "7")
 )
 
+ANALYTICS_JDBC_URL = os.getenv(
+    "ANALYTICS_JDBC_URL",
+    "jdbc:postgresql://postgres:5432/smartretail",
+)
+
+ANALYTICS_JDBC_USER = os.getenv(
+    "ANALYTICS_JDBC_USER",
+    "smartretail",
+)
+
+ANALYTICS_JDBC_PASSWORD = os.getenv(
+    "ANALYTICS_JDBC_PASSWORD",
+    "smartretail",
+)
+
+ANALYTICS_PG_DSN = os.getenv(
+    "ANALYTICS_PG_DSN",
+    "dbname=smartretail user=smartretail password=smartretail host=postgres port=5432",
+)
+
+FORECAST_TARGET_TABLE = os.getenv(
+    "FORECAST_TARGET_TABLE",
+    "analytics.demand_forecast",
+)
+
+FORECAST_STAGING_TABLE = os.getenv(
+    "FORECAST_STAGING_TABLE",
+    "analytics.demand_forecast_staging",
+)
+
 ML_HISTORY_START_DATE = os.getenv(
     "ML_HISTORY_START_DATE",
     "2025-10-01",
