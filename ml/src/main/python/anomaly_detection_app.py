@@ -1,13 +1,5 @@
 from pyspark.sql import DataFrame, Window
 from pyspark.sql import functions as F
-from pyspark.sql.types import BooleanType, DoubleType, StructField, StructType
-
-from anomaly_detection import (
-    calculate_mad,
-    calculate_median,
-    calculate_modified_z_score,
-    is_anomaly,
-)
 
 
 def build_anomaly_candidates(
@@ -63,54 +55,75 @@ def attach_residual_history(candidates: DataFrame) -> DataFrame:
     )
 
 
+def _median_from_array(values):
+    sorted_values = F.array_sort(values)
+    count = F.size(sorted_values)
+    upper_index = F.floor(count / F.lit(2)).cast("int")
+    lower_index = upper_index - F.lit(1)
+
+    odd_median = F.get(sorted_values, upper_index)
+    even_median = (
+        F.get(sorted_values, lower_index)
+        + F.get(sorted_values, upper_index)
+    ) / F.lit(2.0)
+
+    return F.when(
+        F.pmod(count, F.lit(2)) == F.lit(1),
+        odd_median,
+    ).otherwise(even_median)
+
+
 def score_anomaly_candidates(
     candidates: DataFrame,
     threshold: float = 3.5,
 ) -> DataFrame:
-    score_schema = StructType(
-        [
-            StructField("anomaly_score", DoubleType(), nullable=False),
-            StructField("is_anomaly", BooleanType(), nullable=False),
-        ]
+    eligible = candidates.filter(
+        F.size(F.col("historical_residuals")) > 0
     )
 
-    def score_row(
-        residual: float,
-        historical_residuals: list[float],
-    ) -> tuple[float, bool]:
-        median_residual = calculate_median(historical_residuals)
-        mad = calculate_mad(historical_residuals)
-        score = calculate_modified_z_score(
-            residual=float(residual),
-            median_residual=median_residual,
-            mad=mad,
-        )
-        return float(score), is_anomaly(score, threshold=threshold)
+    median_residual = _median_from_array(
+        F.col("historical_residuals")
+    )
 
-    score_udf = F.udf(score_row, score_schema)
+    absolute_deviations = F.transform(
+        F.col("historical_residuals"),
+        lambda value: F.abs(value - median_residual),
+    )
+    mad = _median_from_array(absolute_deviations)
+
+    difference = F.col("residual") - median_residual
+    finite_score = (
+        F.lit(0.6745)
+        * difference
+        / mad
+    )
+
+    anomaly_score = (
+        F.when(
+            (mad == F.lit(0.0))
+            & (difference == F.lit(0.0)),
+            F.lit(0.0),
+        )
+        .when(
+            (mad == F.lit(0.0))
+            & (difference > F.lit(0.0)),
+            F.lit(float("inf")),
+        )
+        .when(
+            mad == F.lit(0.0),
+            F.lit(float("-inf")),
+        )
+        .otherwise(finite_score)
+    )
 
     scored = (
-        candidates
-        .filter(F.size(F.col("historical_residuals")) > 0)
-        .withColumn(
-            "anomaly",
-            score_udf(
-                F.col("residual"),
-                F.col("historical_residuals"),
-            ),
-        )
-        .withColumn(
-            "anomaly_score",
-            F.col("anomaly.anomaly_score"),
-        )
+        eligible
+        .withColumn("anomaly_score", anomaly_score.cast("double"))
         .withColumn(
             "is_anomaly",
-            F.col("anomaly.is_anomaly"),
+            (F.abs(F.col("anomaly_score")) > F.lit(threshold)).cast("boolean"),
         )
-        .withColumn(
-            "detected_at",
-            F.current_timestamp(),
-        )
+        .withColumn("detected_at", F.current_timestamp())
     )
 
     return scored.select(
