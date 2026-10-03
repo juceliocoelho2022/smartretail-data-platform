@@ -21,6 +21,7 @@ from anomaly_detection_app import (
     attach_residual_history,
     build_anomaly_candidates,
     score_anomaly_candidates,
+    stage_anomaly_results,
 )
 
 
@@ -204,6 +205,59 @@ class AnomalyDetectionAppTest(unittest.TestCase):
         self.assertTrue(row["is_anomaly"])
         self.assertEqual("7", row["model_version"])
         self.assertIsNotNone(row["detected_at"])
+
+    def test_stage_anomaly_results_uses_sales_anomaly_staging_table(self):
+        scored = self.spark.createDataFrame(
+            [
+                (
+                    "2026-10-04",
+                    "SKU-001",
+                    150.0,
+                    100.0,
+                    50.0,
+                    16.8625,
+                    True,
+                    "7",
+                )
+            ],
+            [
+                "event_date",
+                "product_id",
+                "actual_units",
+                "expected_units",
+                "residual",
+                "anomaly_score",
+                "is_anomaly",
+                "model_version",
+            ],
+        )
+
+        captured = {}
+
+        def fake_stage(df, staging_table, jdbc_options):
+            captured["columns"] = df.columns
+            captured["staging_table"] = staging_table
+            captured["jdbc_options"] = jdbc_options
+
+        jdbc_options = {
+            "url": "jdbc:postgresql://postgres:5432/smartretail",
+            "user": "smartretail",
+            "password": "smartretail",
+            "driver": "org.postgresql.Driver",
+            "pg_dsn": "dbname=smartretail user=smartretail host=postgres",
+        }
+
+        stage_anomaly_results(
+            scored,
+            jdbc_options=jdbc_options,
+            stage_fn=fake_stage,
+        )
+
+        self.assertEqual(
+            "analytics.sales_anomaly_staging",
+            captured["staging_table"],
+        )
+        self.assertEqual(jdbc_options, captured["jdbc_options"])
 
 
 if __name__ == "__main__":
