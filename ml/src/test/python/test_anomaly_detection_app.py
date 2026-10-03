@@ -20,6 +20,7 @@ if PROJECT_ROOT not in sys.path:
 from anomaly_detection_app import (
     attach_residual_history,
     build_anomaly_candidates,
+    score_anomaly_candidates,
 )
 
 
@@ -168,6 +169,41 @@ class AnomalyDetectionAppTest(unittest.TestCase):
             sorted(sku_002["historical_residuals"]),
         )
         self.assertNotIn(30.0, sku_002["historical_residuals"])
+
+    def test_score_anomaly_candidates_returns_staging_contract(self):
+        candidates = self.spark.createDataFrame(
+            [
+                (
+                    "2026-10-04",
+                    "SKU-001",
+                    150.0,
+                    100.0,
+                    50.0,
+                    "7",
+                    [-2.0, 0.0, 2.0],
+                ),
+            ],
+            [
+                "event_date",
+                "product_id",
+                "actual_units",
+                "expected_units",
+                "residual",
+                "model_version",
+                "historical_residuals",
+            ],
+        )
+
+        row = score_anomaly_candidates(candidates).collect()[0]
+
+        self.assertEqual("SKU-001", row["product_id"])
+        self.assertEqual(150.0, row["actual_units"])
+        self.assertEqual(100.0, row["expected_units"])
+        self.assertEqual(50.0, row["residual"])
+        self.assertAlmostEqual(16.8625, row["anomaly_score"], places=4)
+        self.assertTrue(row["is_anomaly"])
+        self.assertEqual("7", row["model_version"])
+        self.assertIsNotNone(row["detected_at"])
 
 
 if __name__ == "__main__":
