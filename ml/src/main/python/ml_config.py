@@ -65,6 +65,16 @@ FORECAST_STAGING_TABLE = os.getenv(
     "analytics.demand_forecast_staging",
 )
 
+ANOMALY_TARGET_TABLE = os.getenv(
+    "ANOMALY_TARGET_TABLE",
+    "analytics.sales_anomaly",
+)
+
+ANOMALY_STAGING_TABLE = os.getenv(
+    "ANOMALY_STAGING_TABLE",
+    "analytics.sales_anomaly_staging",
+)
+
 ML_HISTORY_START_DATE = os.getenv(
     "ML_HISTORY_START_DATE",
     "2025-10-01",
