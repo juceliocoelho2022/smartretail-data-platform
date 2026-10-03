@@ -2,7 +2,7 @@ import os
 import sys
 import unittest
 
-from unittest.mock import Mock, patch
+from unittest.mock import MagicMock, Mock, patch
 
 
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -86,7 +86,7 @@ class ServingPublishTest(unittest.TestCase):
 
     @patch("serving_publish.psycopg2.connect")
     def test_replace_from_staging_commits_single_transaction(self, connect):
-        connection = Mock()
+        connection = MagicMock()
         cursor = Mock()
         connection.cursor.return_value.__enter__.return_value = cursor
         connect.return_value = connection
@@ -113,7 +113,7 @@ class ServingPublishTest(unittest.TestCase):
 
     @patch("serving_publish.psycopg2.connect")
     def test_replace_from_staging_rolls_back_on_sql_failure(self, connect):
-        connection = Mock()
+        connection = MagicMock()
         cursor = Mock()
         connection.cursor.return_value.__enter__.return_value = cursor
         cursor.execute.side_effect = [None, RuntimeError("insert failed")]
