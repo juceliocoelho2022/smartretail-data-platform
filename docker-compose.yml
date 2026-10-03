@@ -6,6 +6,12 @@ x-ml-common-environment: &ml-common-environment
   MLFLOW_TRACKING_URI: http://mlflow:5000
   MODEL_NAME: smartretail-demand-forecast
   FORECAST_HORIZON_DAYS: "7"
+  ANALYTICS_JDBC_URL: jdbc:postgresql://postgres:5432/smartretail
+  ANALYTICS_JDBC_USER: smartretail
+  ANALYTICS_JDBC_PASSWORD: smartretail
+  ANALYTICS_PG_DSN: dbname=smartretail user=smartretail password=smartretail host=postgres port=5432
+  FORECAST_TARGET_TABLE: analytics.demand_forecast
+  FORECAST_STAGING_TABLE: analytics.demand_forecast_staging
   S3_ENDPOINT: http://minio:9000
   S3_ACCESS_KEY: ${MINIO_ROOT_USER:-smartretail}
   S3_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-smartretail123}
@@ -218,6 +224,44 @@ services:
       - --packages
       - org.apache.hadoop:hadoop-aws:3.4.1,org.postgresql:postgresql:42.7.13
       - /opt/spark/work-dir/ml-src/main/python/champion_validation_app.py
+
+  ml-forecast-generate:
+    <<: *ml-job-defaults
+    environment:
+      <<: *ml-common-environment
+    depends_on:
+      minio:
+        condition: service_healthy
+      mlflow:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      analytics-api:
+        condition: service_healthy
+      spark-ivy-init:
+        condition: service_completed_successfully
+    command:
+      - /opt/spark/bin/spark-submit
+      - --master
+      - local[*]
+      - --conf
+      - spark.jars.ivy=/tmp/.ivy2
+      - --packages
+      - org.apache.hadoop:hadoop-aws:3.4.1,org.postgresql:postgresql:42.7.13
+      - /opt/spark/work-dir/ml-src/main/python/demand_scoring_app.py
+
+  ml-forecast-publish:
+    <<: *ml-job-defaults
+    environment:
+      <<: *ml-common-environment
+    depends_on:
+      postgres:
+        condition: service_healthy
+      analytics-api:
+        condition: service_healthy
+    command:
+      - python3
+      - /opt/spark/work-dir/ml-src/main/python/publish_forecast_app.py
 
   kafka:
     image: apache/kafka:3.9.1
