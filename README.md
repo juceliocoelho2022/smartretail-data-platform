@@ -34,7 +34,7 @@ Sem mecanismos explícitos de confiabilidade, o fluxo pode falhar de diferentes 
 |---|---|---|
 | Retry envia o mesmo pedido novamente | duas operações lógicas | `Idempotency-Key` |
 | Banco confirma e Kafka falha | estado persistido sem publicação | Transactional Outbox |
-| Kafka redelivera a mensagem | efeito/projeção duplicada | consumer idempotente |
+| Kafka reentrega a mensagem | efeito/projeção duplicada | consumer idempotente |
 | dado inválido avança no pipeline | analytics inconsistente | Silver invariants + Data Quality Gate |
 | frontend depende do lake/transacional | alto acoplamento | serving model + Analytics API |
 | falha ocorre em pipeline distribuído | diagnóstico difícil | health, métricas, logs e status das tasks |
