@@ -1,12 +1,231 @@
 # 🛒 SmartRetail Data Platform
 
 <p align="center">
-  <strong>Plataforma de dados orientada a eventos para varejo, construída com Java, Kafka, Spark, Airflow, PostgreSQL, Apache Iceberg e React.</strong>
+  <strong>Case de engenharia para ingestão confiável e processamento analítico de eventos de varejo, com proteção contra duplicação e falhas parciais.</strong>
 </p>
 
 <p align="center">
-  Projeto de portfólio focado em <strong>Backend Java, Engenharia de Dados, Event Streaming, Lakehouse, Analytics e Machine Learning</strong>.
+  Backend Java • Event-Driven Architecture • Engenharia de Dados • Lakehouse • Analytics
 </p>
+
+---
+
+## Business Problem
+
+Uma operação de varejo omnichannel recebe eventos de pedidos originados por web, aplicativo, PDV e integrações externas. Em sistemas distribuídos, retries, timeouts e reprocessamentos podem fazer a **mesma operação chegar mais de uma vez**.
+
+Se a plataforma tratar cada entrega como uma nova operação, o resultado pode ser processamento duplicado, projeções inconsistentes e dados analíticos incorretos.
+
+O SmartRetail foi construído para responder a uma pergunta de engenharia concreta:
+
+> **Como receber e processar eventos de varejo de forma confiável, tolerando duplicação e falhas parciais, sem acoplar a ingestão transacional ao processamento analítico?**
+
+Este repositório é uma **simulação de portfólio**. Ele demonstra decisões e comportamentos verificáveis no ambiente do projeto; não reivindica volume, throughput, latência ou disponibilidade de uma operação real sem testes específicos para isso.
+
+➡️ [Problema de negócio completo](docs/BUSINESS_PROBLEM.md)
+
+---
+
+## Business Impact / Failure Modes
+
+Sem mecanismos explícitos de confiabilidade, o fluxo pode falhar de diferentes maneiras:
+
+| Falha | Impacto | Proteção usada no projeto |
+|---|---|---|
+| Retry envia o mesmo pedido novamente | duas operações lógicas | `Idempotency-Key` |
+| Banco confirma e Kafka falha | estado persistido sem publicação | Transactional Outbox |
+| Kafka redelivera a mensagem | efeito/projeção duplicada | consumer idempotente |
+| dado inválido avança no pipeline | analytics inconsistente | Silver invariants + Data Quality Gate |
+| frontend depende do lake/transacional | alto acoplamento | serving model + Analytics API |
+| falha ocorre em pipeline distribuído | diagnóstico difícil | health, métricas, logs e status das tasks |
+
+---
+
+## Core Business Rules
+
+A arquitetura é orientada por seis invariantes principais:
+
+- **BR-001 — Idempotent ingestion:** a mesma `Idempotency-Key` não cria dois eventos lógicos distintos.
+- **BR-002 — Reliable event publication:** um evento aceito não depende de um dual write ingênuo entre PostgreSQL e Kafka.
+- **BR-003 — Idempotent downstream consumption:** reentrega Kafka não deve duplicar o efeito de negócio.
+- **BR-004 — Curated analytical data:** apenas dados que satisfazem as invariantes da Silver avançam como dados confiáveis.
+- **BR-005 — Reproducible analytical products:** Gold e serving são reconstruíveis a partir de dados curados.
+- **BR-006 — Operational traceability:** ingestão, publicação, processamento e qualidade precisam produzir evidência operacional.
+
+➡️ [Business Rules](docs/BUSINESS_RULES.md) · [Requirements](docs/REQUIREMENTS.md)
+
+---
+
+## Solution Overview
+
+```text
+Retail Channels
+      │
+      ▼
+Spring Boot Ingestion API
+      │
+      ├── validation
+      └── Idempotency-Key
+      │
+      ▼
+PostgreSQL transaction
+├── idempotency state
+└── outbox_event
+      │
+      ▼
+Outbox Publisher
+      │
+      ▼
+Apache Kafka
+      │
+      ▼
+Spark Structured Streaming
+      │
+   Bronze → Silver
+              │
+              ▼
+       Data Quality Gate
+              │
+              ▼
+             Gold
+          ┌───┴──────────┐
+          ▼              ▼
+      Iceberg      Analytics Export
+                         │
+                         ▼
+                 PostgreSQL analytics
+                         │
+                         ▼
+                 Spring Boot Analytics API
+                         │
+                         ▼
+                    React Dashboard
+```
+
+**Streaming contínuo:** Kafka → Bronze → Silver é processado por Spark Structured Streaming.  
+**Batch finito:** Airflow começa depois da Silver e orquestra Data Quality → Gold → Iceberg → validação → publicação analítica.
+
+➡️ [Arquitetura detalhada](docs/ARCHITECTURE.md)
+
+---
+
+## Engineering Decisions & Trade-offs
+
+### Kafka — desacoplamento e replay
+
+**Problema resolvido:** a ingestão não deve esperar consumidores downstream, e múltiplos consumidores precisam evoluir independentemente.
+
+**Decisão:** Kafka funciona como event backbone, oferecendo retenção, replay e consumer groups.
+
+**Trade-off:** adiciona complexidade operacional e não elimina redelivery; consumidores continuam precisando ser idempotentes.
+
+➡️ [ADR-001 — Kafka Event Backbone](docs/adr/ADR-001-kafka-event-backbone.md)
+
+### Transactional Outbox — dual write
+
+**Problema resolvido:** evitar o cenário em que PostgreSQL confirma a operação, mas a publicação no Kafka falha logo depois.
+
+**Decisão:** estado transacional e `outbox_event` são persistidos na mesma transação local; um publisher envia a mensagem após o commit.
+
+**Trade-off:** exige tabela Outbox, publisher, retry e monitoramento próprios.
+
+➡️ [ADR-002 — Transactional Outbox](docs/adr/ADR-002-transactional-outbox.md)
+
+### Medallion + Airflow boundary
+
+**Problema resolvido:** separar processamento contínuo de etapas analíticas batch e distinguir dado bruto, curado e pronto para consumo.
+
+**Decisão:** Bronze/Silver permanecem em Spark Structured Streaming. Airflow coordena somente jobs finitos posteriores à Silver.
+
+**Trade-off:** a plataforma opera dois modelos de execução — streaming e batch — com contratos claros entre eles.
+
+➡️ [ADR-003 — Medallion + Airflow](docs/adr/ADR-003-medallion-and-airflow-boundary.md)
+
+### Dedicated analytics serving model
+
+**Problema resolvido:** evitar que a UI consulte arquivos do Lakehouse ou tabelas transacionais da ingestão.
+
+**Decisão:** Gold é publicado no schema PostgreSQL `analytics`, consumido por uma Spring Boot Analytics API e pelo dashboard React.
+
+**Trade-off:** há duplicação controlada entre Gold e serving, e a freshness depende do passo de publicação.
+
+➡️ [ADR-004 — Analytics Serving Model](docs/adr/ADR-004-analytics-serving-model.md)
+
+### Semântica de entrega
+
+O projeto **não reivindica exactly-once global**. Kafka e os fluxos assíncronos são tratados com semântica compatível com `at-least-once`, combinada com idempotência na entrada e no consumo.
+
+---
+
+## Evidence — comportamento validado
+
+Os valores abaixo são **evidências de execução do ambiente de demonstração**, não benchmarks de produção.
+
+### Data Quality Gate
+
+```text
+Silver Data Quality gate: PASSED
+totalRows=5
+nullEventId=0
+nullCustomerId=0
+nullProductId=0
+invalidQuantity=0
+invalidUnitPrice=0
+duplicateRows=0
+```
+
+O gate valida invariantes da **Silver já curada**; ele não é apresentado como contador de rejeições da Bronze.
+
+### Post-load validation
+
+```text
+Post-load validation: PASSED
+Silver rows=5
+Iceberg rows=5
+Gold totalOrders=5
+```
+
+### Airflow v0.5
+
+```text
+silver_data_quality    success
+build_gold             success
+refresh_iceberg        success
+post_load_validation   success
+publish_analytics      success
+DagRun                  success
+```
+
+### Analytics Export
+
+```text
+Analytics serving export: PASSED
+Summary rows=1
+Daily rows=4
+```
+
+### Estado analítico servido pela API
+
+```text
+totalOrders       = 5
+totalItems        = 14
+totalRevenue      = 2918.60
+averageOrderValue = 583.72
+uniqueCustomers   = 4
+uniqueProducts    = 4
+goldProcessedAt   = 2026-10-02 20:45:52
+refreshedAt       = 2026-10-02 20:47:57
+```
+
+O `refreshedAt` foi usado para confirmar que a API estava servindo o estado publicado pelo último run do pipeline.
+
+➡️ [Case para entrevistas](docs/PORTFOLIO_CASE_STUDY.md)
+
+---
+
+## Status atual
+
+**v0.5 — Analytics API + Dashboard React concluída e validada de ponta a ponta no ambiente do projeto.**
 
 <p align="center">
   <img alt="Java 21" src="https://img.shields.io/badge/Java-21-ED8B00?logo=openjdk&logoColor=white">
@@ -28,96 +247,34 @@
   <img alt="v0.5" src="https://img.shields.io/badge/v0.5-Analytics%20conclu%C3%ADda-2EA44F">
 </p>
 
----
+Implementado até aqui:
 
-## 📌 Visão geral
-
-O **SmartRetail Data Platform** simula uma plataforma de dados moderna para varejo digital e físico, cobrindo o ciclo completo do dado:
-
-```text
-geração → ingestão → mensageria → streaming → lakehouse → qualidade
-       → orquestração → serving analítico → API → dashboard → ML
-```
-
-O projeto evolui por releases incrementais e cada fase adiciona capacidades reais sobre a arquitetura anterior.
-
-> **Status atual:** ✅ **v0.5 — Analytics API + Dashboard React concluída, integrada à `main` e validada de ponta a ponta.**
->
-> ✅ Event Platform com Java 21 + Spring Boot + Kafka  
-> ✅ Spark Structured Streaming  
-> ✅ Bronze / Silver / Gold em MinIO  
-> ✅ Apache Iceberg com JDBC Catalog, snapshots, Time Travel e Schema Evolution  
-> ✅ Apache Airflow + Data Quality + validação pós-carga  
-> ✅ Serving analítico em PostgreSQL  
-> ✅ Analytics API com Spring Boot  
-> ✅ Dashboard React + TypeScript  
-> ✅ Pipeline completo Airflow finalizado com `state=success`
+- Event Platform com Java 21 + Spring Boot + Kafka;
+- idempotência HTTP + consumer idempotente;
+- Transactional Outbox;
+- retry + Dead Letter Topic;
+- Spark Structured Streaming;
+- Bronze / Silver / Gold em MinIO/S3;
+- Apache Iceberg com JDBC Catalog, snapshots, Time Travel e Schema Evolution;
+- Apache Airflow + Data Quality + validação pós-carga;
+- serving analítico em PostgreSQL;
+- Analytics API com Spring Boot;
+- dashboard React + TypeScript;
+- testes automatizados e GitHub Actions.
 
 ---
 
-## 🏗️ Arquitetura atual
-
-```text
-Web / Mobile / PDV / APIs
-          │
-          ▼
-┌───────────────────────────────┐
-│ Ingestion API                 │
-│ Java 21 + Spring Boot         │
-│ Idempotency + Outbox Pattern  │
-└──────────────┬────────────────┘
-               │
-               ▼
-        PostgreSQL 17
-               │
-               ▼
-         Apache Kafka
-               │
-               ▼
-  Spark Structured Streaming
-               │
-        ┌──────┴──────┐
-        ▼             ▼
-   Real-time KPIs   MinIO / S3
-                      │
-                      ▼
-                  Bronze
-                      │
-                      ▼
-                   Silver
-                      │
-             Data Quality Gate
-                      │
-                      ▼
-                    Gold
-                      │
-             ┌────────┴────────┐
-             ▼                 ▼
-      Apache Iceberg      Analytics Export
-             │                 │
-     JDBC Catalog              ▼
-        PostgreSQL      PostgreSQL / analytics
-                               │
-                               ▼
-                     Spring Boot Analytics API
-                               │
-                               ▼
-                      React Analytics Dashboard
-```
-
-A ingestão Kafka/Bronze e a Silver permanecem fluxos contínuos de **Spark Structured Streaming**. O Airflow orquestra os jobs batch finitos posteriores à Silver.
-
----
+# Release history
 
 ## ✅ v0.1 — Event Platform
 
 A primeira release estabelece a base transacional e orientada a eventos.
 
-### Principais capacidades
+### Capacidades
 
 - Java 21 + Spring Boot 3.5.5;
 - API REST para ingestão de pedidos;
-- validação de payload;
+- Bean Validation;
 - `Idempotency-Key`;
 - Transactional Outbox Pattern;
 - Apache Kafka 3.9.1;
@@ -157,8 +314,6 @@ order_event_projection
 
 A v0.2 conecta Kafka ao Apache Spark Structured Streaming.
 
-### Implementado
-
 - Apache Spark 4.0.1;
 - PySpark;
 - Kafka Source;
@@ -175,11 +330,9 @@ A v0.2 conecta Kafka ao Apache Spark Structured Streaming.
 
 ## ✅ v0.3 — Data Lakehouse
 
-A v0.3 implementa a Medallion Architecture sobre MinIO/S3.
+A v0.3 implementa Medallion Architecture sobre MinIO/S3.
 
 ### Bronze
-
-Eventos Kafka brutos e reprocessáveis:
 
 ```text
 s3a://smartretail-bronze/orders/
@@ -189,13 +342,11 @@ Preserva payload, chave, tópico, partição, offset, timestamps e data de inges
 
 ### Silver
 
-Dados tipados, normalizados, validados e deduplicados:
-
 ```text
 s3a://smartretail-silver/orders/
 ```
 
-Regras principais:
+Regras atuais:
 
 - `eventId`, `customerId` e `productId` obrigatórios;
 - `quantity > 0`;
@@ -206,8 +357,6 @@ Regras principais:
 - deduplicação por `eventId`.
 
 ### Gold
-
-Data Products analíticos reconstruíveis:
 
 ```text
 s3a://smartretail-gold/orders-daily/
@@ -223,17 +372,6 @@ KPIs:
 - clientes únicos;
 - produtos únicos;
 - vendas por data, canal e localização.
-
-Estado atualmente validado:
-
-```text
-totalOrders       = 5
-totalItems        = 14
-totalRevenue      = 2918.60
-averageOrderValue = 583.72
-uniqueCustomers   = 4
-uniqueProducts    = 4
-```
 
 ### Apache Iceberg
 
@@ -264,13 +402,9 @@ Recursos validados:
 
 ## ✅ v0.4 — Airflow + Data Quality
 
-A v0.4 adiciona orquestração explícita sobre os jobs batch do Lakehouse.
-
-### DAG
+A v0.4 adiciona orquestração aos jobs batch posteriores à Silver.
 
 ```text
-smartretail_lakehouse_pipeline
-
 silver_data_quality
         ↓
 build_gold
@@ -282,39 +416,15 @@ post_load_validation
 
 Cada etapa roda em container Spark isolado via `DockerOperator`.
 
-### Data Quality Gate
-
-Validações sobre a Silver:
-
-```text
-Silver Data Quality gate: PASSED
-totalRows=5
-nullEventId=0
-nullCustomerId=0
-nullProductId=0
-invalidQuantity=0
-invalidUnitPrice=0
-duplicateRows=0
-```
-
-A Silver já é uma camada curada; portanto esse gate funciona como **checagem de invariantes da Silver**, e não como medição de rejeições da Bronze.
-
-### Post-load validation
-
-```text
-Post-load validation: PASSED
-Silver rows=5
-Iceberg rows=5
-Gold totalOrders=5
-```
+A Silver Data Quality funciona como checagem das invariantes da camada curada antes dos jobs seguintes.
 
 ---
 
 ## ✅ v0.5 — Analytics API + Dashboard React
 
-A v0.5 transforma os Data Products Gold em uma camada de consumo analítico acessível por API e interface web.
+A v0.5 transforma os Data Products Gold em uma camada de consumo analítico por API e interface web.
 
-### Pipeline Airflow atualizado
+### Pipeline Airflow
 
 ```text
 silver_data_quality
@@ -328,17 +438,13 @@ post_load_validation
 publish_analytics
 ```
 
-A nova task `publish_analytics` executa o job Spark:
+A task `publish_analytics` executa:
 
 ```text
 streaming/spark-streaming/src/main/python/analytics_export_app.py
 ```
 
-e publica os Data Products Gold no schema analítico do PostgreSQL.
-
 ### Serving model PostgreSQL
-
-Schema isolado:
 
 ```text
 analytics
@@ -346,26 +452,13 @@ analytics
 └── sales_daily
 ```
 
-Essa separação evita acoplamento entre as tabelas transacionais da Event Platform e o modelo de leitura analítico.
-
 ### Analytics API
 
-Serviço dedicado:
+Serviço:
 
 ```text
 backend/analytics-api
 ```
-
-Stack:
-
-- Java 21;
-- Spring Boot 3.5.5;
-- Spring JDBC;
-- Flyway;
-- PostgreSQL;
-- Actuator;
-- Micrometer / Prometheus;
-- JUnit 5 + Mockito.
 
 Endpoints:
 
@@ -374,7 +467,7 @@ GET /api/v1/analytics/summary
 GET /api/v1/analytics/sales/daily
 ```
 
-O endpoint diário aceita filtros opcionais:
+Filtros opcionais no endpoint diário:
 
 ```text
 from
@@ -390,82 +483,20 @@ Exemplo:
 GET /api/v1/analytics/sales/daily?from=2026-10-01&to=2026-10-02&channel=WEB&limit=100
 ```
 
-### React Analytics Dashboard
+### Dashboard
 
-Aplicação:
-
-```text
-frontend/analytics-dashboard
-```
-
-Stack:
+Stack atual:
 
 - React 19;
 - TypeScript;
 - Vite;
 - Nginx no container de produção.
 
-KPIs exibidos:
-
-```text
-Receita total        R$ 2.918,60
-Pedidos              5
-Ticket médio         R$ 583,72
-Itens vendidos       14
-Clientes únicos      4
-Produtos únicos      4
-```
-
-Também são exibidos:
-
-- receita por segmento;
-- data;
-- canal;
-- localização;
-- número de pedidos;
-- itens;
-- receita;
-- ticket médio.
-
-### Validação E2E da v0.5
-
-A execução final pelo Airflow confirmou:
-
-```text
-silver_data_quality    success
-build_gold             success
-refresh_iceberg        success
-post_load_validation   success
-publish_analytics      success
-DagRun                  success
-```
-
-Analytics Export:
-
-```text
-Analytics serving export: PASSED
-Summary rows=1
-Daily rows=4
-```
-
-A API retornou o estado recém-publicado:
-
-```text
-totalOrders       = 5
-totalItems        = 14
-totalRevenue      = 2918.60
-averageOrderValue = 583.72
-uniqueCustomers   = 4
-uniqueProducts    = 4
-goldProcessedAt   = 2026-10-02 20:45:52
-refreshedAt       = 2026-10-02 20:47:57
-```
-
-O `refreshedAt` confirma que a API estava servindo os dados publicados pelo último run do Airflow.
+Exibe resumo e segmentações por data, canal e localização.
 
 ---
 
-## 🔄 Fluxo E2E atual
+## Fluxo E2E atual
 
 ```text
 Order Event
@@ -493,34 +524,6 @@ Iceberg     Analytics Export
    │              ↓
    └──────► React Dashboard
 ```
-
----
-
-## 🧠 Decisões arquiteturais importantes
-
-### Transactional Outbox
-
-A API não publica no Kafka dentro da mesma transação HTTP. Primeiro persiste o evento no PostgreSQL e, após o commit, o publisher envia ao broker.
-
-### Idempotência ponta a ponta
-
-A plataforma protege contra duplicação tanto na entrada HTTP quanto no consumo Kafka.
-
-### Streaming + batch separados
-
-Bronze e Silver são fluxos contínuos. Airflow coordena os jobs batch finitos posteriores à Silver.
-
-### Medallion Architecture
-
-A separação Bronze → Silver → Gold mantém rastreabilidade entre dados brutos, confiáveis e prontos para consumo.
-
-### Serving model separado
-
-O schema `analytics` funciona como read model para a API, evitando consultas diretas do frontend sobre arquivos Gold ou tabelas transacionais.
-
-### Iceberg como tabela analítica versionada
-
-A tabela Iceberg adiciona snapshots, Time Travel e Schema Evolution sem substituir os Data Products Gold usados pelo serving model.
 
 ---
 
@@ -564,15 +567,15 @@ docker compose up -d --build
 | MinIO S3 API | `9000` |
 | MinIO Console | `9001` |
 
-Dentro da rede Docker, o PostgreSQL utiliza a porta interna `5432`.
+Dentro da rede Docker, PostgreSQL utiliza a porta interna `5432`.
 
-### Executar o export analítico manualmente
+### Export analítico manual
 
 ```bash
 docker compose run --rm spark-analytics-export
 ```
 
-Saída esperada:
+Saída de validação esperada no ambiente do projeto:
 
 ```text
 Analytics serving export: PASSED
@@ -580,7 +583,7 @@ Summary rows=1
 Daily rows=4
 ```
 
-### Disparar a DAG completa
+### Disparar a DAG
 
 ```bash
 docker exec smartretail-airflow \
@@ -605,19 +608,14 @@ curl -i -X POST http://localhost:8080/api/v1/events/orders \
   }'
 ```
 
+Mais exemplos: [docs/API_EXAMPLES.md](docs/API_EXAMPLES.md).
+
 ---
 
-## 📊 Consultar Analytics API
-
-Resumo:
+## 📊 Analytics API
 
 ```bash
 curl http://localhost:8082/api/v1/analytics/summary
-```
-
-Vendas diárias:
-
-```bash
 curl "http://localhost:8082/api/v1/analytics/sales/daily?limit=100"
 ```
 
@@ -664,39 +662,38 @@ Workflows principais:
 .github/workflows/dashboard-ci.yml
 ```
 
-Cobertura:
+Cobertura por área:
 
-- backend de ingestão: JUnit 5, Mockito, MockMvc, JaCoCo;
+- ingestion backend: JUnit 5, Mockito, MockMvc, JaCoCo;
 - analytics API: JUnit 5, Mockito, JaCoCo;
-- streaming/lakehouse: PySpark + `unittest`;
+- streaming/lakehouse: PySpark + Python `unittest`;
 - dashboard: TypeScript build + Vite;
 - Docker Compose validado no pipeline de streaming.
-
-Após o merge da v0.5, os workflows `analytics-ci`, `dashboard-ci` e `streaming-ci` concluíram com sucesso na `main`.
 
 ---
 
 ## 🧰 Stack tecnológica
 
-| Área | Tecnologias |
+A stack aparece aqui **depois** do problema, regras e decisões porque tecnologia é consequência da necessidade arquitetural.
+
+| Área | Tecnologias / responsabilidade |
 |---|---|
 | Backend | Java 21, Spring Boot 3.5.5 |
-| APIs | REST, Validation, Problem Details, Spring JDBC |
+| APIs | REST, Validation, Spring JDBC |
 | Persistência | PostgreSQL 17, Spring Data JPA, JDBC |
-| Streaming | Apache Kafka 3.9.1 |
-| Resiliência | Retry, DLT, Idempotência |
-| Mensageria | Transactional Outbox |
+| Event backbone | Apache Kafka 3.9.1 |
+| Confiabilidade | Idempotência, Transactional Outbox, retry, DLT |
 | Schema | Flyway |
-| Big Data | Apache Spark 4.0.1, PySpark, Structured Streaming |
-| Lakehouse | MinIO/S3, Parquet, Bronze, Silver, Gold, Apache Iceberg 1.11.0 |
-| Data Engineering | Apache Airflow 3.3.2, DockerOperator, Data Quality, post-load validation |
+| Stream processing | Apache Spark 4.0.1, PySpark, Structured Streaming |
+| Lakehouse | MinIO/S3, Parquet, Bronze/Silver/Gold, Apache Iceberg 1.11.0 |
+| Orquestração | Apache Airflow 3.3.2, DockerOperator |
+| Data Quality | Silver invariant gate, post-load validation |
 | Analytics | PostgreSQL serving model, Spring Boot Analytics API |
 | Frontend | React 19, TypeScript, Vite, Nginx |
-| Observabilidade | Actuator, Micrometer, Prometheus endpoints |
+| Observabilidade | Actuator, Micrometer, Prometheus endpoints, pipeline status/logs |
 | Testes | JUnit 5, Mockito, MockMvc, JaCoCo, Python `unittest` |
 | Containers | Docker, Docker Compose |
 | CI/CD | GitHub Actions |
-| ML | MLflow — próxima fase |
 
 ---
 
@@ -706,55 +703,29 @@ Após o merge da v0.5, os workflows `analytics-ci`, `dashboard-ci` e `streaming-
 smartretail-data-platform/
 ├── backend/
 │   ├── ingestion-api/
-│   │   ├── src/main/java/
-│   │   ├── src/main/resources/
-│   │   ├── src/test/java/
-│   │   ├── Dockerfile
-│   │   └── pom.xml
 │   └── analytics-api/
-│       ├── src/main/java/
-│       ├── src/main/resources/
-│       ├── src/test/java/
-│       ├── Dockerfile
-│       ├── pom.xml
-│       └── README.md
 ├── frontend/
 │   └── analytics-dashboard/
-│       ├── src/
-│       ├── Dockerfile
-│       ├── package.json
-│       └── README.md
 ├── streaming/
 │   └── spark-streaming/
-│       ├── src/main/python/
-│       ├── src/test/python/
-│       ├── Dockerfile.jobs
-│       └── README.md
 ├── lakehouse/
-│   └── README.md
 ├── orchestration/
 │   └── airflow/
-│       ├── dags/
-│       │   ├── smartretail_airflow_smoke.py
-│       │   └── smartretail_lakehouse_pipeline.py
-│       ├── Dockerfile
-│       ├── requirements.txt
-│       └── README.md
 ├── docs/
-│   ├── assets/
-│   ├── API_EXAMPLES.md
+│   ├── BUSINESS_PROBLEM.md
+│   ├── BUSINESS_RULES.md
+│   ├── REQUIREMENTS.md
 │   ├── ARCHITECTURE.md
+│   ├── PORTFOLIO_CASE_STUDY.md
+│   ├── API_EXAMPLES.md
 │   ├── ROADMAP.md
-│   └── V0.1_IMPLEMENTATION.md
-├── .github/
-│   └── workflows/
-│       ├── backend-ci.yml
-│       ├── streaming-ci.yml
-│       ├── analytics-ci.yml
-│       └── dashboard-ci.yml
-├── .env.example
+│   └── adr/
+│       ├── ADR-001-kafka-event-backbone.md
+│       ├── ADR-002-transactional-outbox.md
+│       ├── ADR-003-medallion-and-airflow-boundary.md
+│       └── ADR-004-analytics-serving-model.md
+├── .github/workflows/
 ├── docker-compose.yml
-├── LICENSE
 └── README.md
 ```
 
@@ -769,75 +740,41 @@ smartretail-data-platform/
 | **v0.3** | Data Lakehouse — MinIO/S3 + Bronze/Silver/Gold + Iceberg | ✅ Concluída |
 | **v0.4** | Data Engineering — Airflow + PySpark + Data Quality | ✅ Concluída |
 | **v0.5** | Analytics — Serving PostgreSQL + Spring Boot API + Dashboard React | ✅ Concluída |
-| **v0.6** | AI — MLflow + previsão de demanda + detecção de anomalias | ⏭️ Próxima |
+| **v0.6** | AI — MLflow + previsão de demanda + detecção de anomalias | ⏭️ Roadmap |
 
----
+### v0.6 — futuro
 
-## 🤖 v0.6 — Próxima fase
-
-A próxima etapa adicionará uma camada de Machine Learning sobre os dados confiáveis da plataforma.
-
-Escopo planejado:
+Itens planejados, **não implementados como parte do estado atual**:
 
 - MLflow para tracking de experimentos;
 - previsão de demanda;
 - detecção de anomalias;
 - versionamento de modelos;
-- métricas de treinamento e avaliação;
 - integração dos resultados ao ecossistema analítico.
-
-A implementação da v0.6 ainda não foi iniciada neste README; os itens acima representam roadmap.
-
----
-
-## 🎓 Competências demonstradas
-
-As releases v0.1 até v0.5 demonstram na prática:
-
-- Java 21 e Spring Boot;
-- APIs REST;
-- arquitetura orientada a eventos;
-- Apache Kafka;
-- Transactional Outbox;
-- idempotência;
-- retry e DLT;
-- Apache Spark Structured Streaming;
-- PySpark;
-- event time, watermark e janelas;
-- Medallion Architecture;
-- MinIO / S3A;
-- Parquet;
-- Bronze / Silver / Gold;
-- Apache Iceberg;
-- JDBC Catalog;
-- snapshots e Time Travel;
-- Schema Evolution;
-- Data Quality;
-- Apache Airflow;
-- DAGs;
-- DockerOperator;
-- validação pós-carga;
-- serving model analítico;
-- PostgreSQL;
-- Spring JDBC;
-- Flyway;
-- React;
-- TypeScript;
-- Vite;
-- Docker e Docker Compose;
-- CI com GitHub Actions;
-- testes automatizados;
-- observabilidade com Actuator/Micrometer/Prometheus;
-- documentação técnica;
-- evolução incremental de arquitetura.
 
 ---
 
 ## 📚 Documentação técnica
 
+### Negócio e requisitos
+
+- [Business Problem](docs/BUSINESS_PROBLEM.md)
+- [Business Rules](docs/BUSINESS_RULES.md)
+- [Requirements](docs/REQUIREMENTS.md)
+- [Portfolio Case Study](docs/PORTFOLIO_CASE_STUDY.md)
+
+### Arquitetura
+
+- [Arquitetura atual](docs/ARCHITECTURE.md)
+- [ADR-001 — Kafka Event Backbone](docs/adr/ADR-001-kafka-event-backbone.md)
+- [ADR-002 — Transactional Outbox](docs/adr/ADR-002-transactional-outbox.md)
+- [ADR-003 — Medallion + Airflow](docs/adr/ADR-003-medallion-and-airflow-boundary.md)
+- [ADR-004 — Analytics Serving Model](docs/adr/ADR-004-analytics-serving-model.md)
+
+### Implementação
+
 - [Exemplos da API](docs/API_EXAMPLES.md)
 - [Implementação da v0.1](docs/V0.1_IMPLEMENTATION.md)
-- [Arquitetura](docs/ARCHITECTURE.md)
 - [Roadmap](docs/ROADMAP.md)
 - [Airflow](orchestration/airflow/README.md)
 - [Analytics API](backend/analytics-api/README.md)
@@ -847,16 +784,24 @@ As releases v0.1 até v0.5 demonstram na prática:
 
 ## 📐 Princípios de engenharia
 
-1. **Clareza antes de complexidade**
-2. **Contratos explícitos**
-3. **Idempotência**
+1. **Problema antes da tecnologia**
+2. **Regras e contratos explícitos**
+3. **Idempotência nos limites necessários**
 4. **Baixo acoplamento**
-5. **Observabilidade by design**
-6. **Automação de testes**
-7. **Infraestrutura reproduzível**
-8. **Dados confiáveis antes de IA**
-9. **Documentação junto com o código**
-10. **Evolução incremental**
+5. **At-least-once + efeitos idempotentes, não exactly-once global**
+6. **Data Quality antes do consumo analítico**
+7. **Observabilidade by design**
+8. **Automação de testes**
+9. **Infraestrutura reproduzível**
+10. **Evolução incremental orientada por necessidade**
+
+---
+
+## 🎓 Como apresentar este projeto em entrevista
+
+Uma versão de 60 segundos, explicação técnica de 3–5 minutos e perguntas/respostas estão disponíveis em:
+
+➡️ **[SmartRetail Portfolio Case Study](docs/PORTFOLIO_CASE_STUDY.md)**
 
 ---
 
@@ -878,5 +823,5 @@ GitHub: [@juceliocoelho2022](https://github.com/juceliocoelho2022)
 
 <p align="center">
   <strong>SmartRetail Data Platform</strong><br>
-  Do evento ao insight — streaming, Lakehouse, Analytics e evolução para IA.
+  Do problema de negócio à evidência de engenharia: ingestão confiável, streaming, Lakehouse e Analytics.
 </p>
