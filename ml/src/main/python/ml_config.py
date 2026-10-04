@@ -75,6 +75,18 @@ ANOMALY_STAGING_TABLE = os.getenv(
     "analytics.sales_anomaly_staging",
 )
 
+ANOMALY_THRESHOLD = float(
+    os.getenv("ANOMALY_THRESHOLD", "3.5")
+)
+
+ANOMALY_MIN_HISTORY = int(
+    os.getenv("ANOMALY_MIN_HISTORY", "7")
+)
+
+ANOMALY_HISTORY_WINDOW = int(
+    os.getenv("ANOMALY_HISTORY_WINDOW", "28")
+)
+
 ML_HISTORY_START_DATE = os.getenv(
     "ML_HISTORY_START_DATE",
     "2025-10-01",
