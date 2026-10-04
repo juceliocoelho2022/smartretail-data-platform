@@ -90,6 +90,14 @@ jobs:
           curl --fail --silent --show-error \
             http://localhost:8082/actuator/health
 
+      - name: Verify forecast vintage primary key
+        run: |
+          pk_columns="$(docker compose exec -T postgres \
+            psql -U smartretail -d smartretail -tAc \
+            "SELECT string_agg(a.attname, ',' ORDER BY k.ordinality) FROM pg_constraint c CROSS JOIN LATERAL unnest(c.conkey) WITH ORDINALITY AS k(attnum, ordinality) JOIN pg_attribute a ON a.attrelid = c.conrelid AND a.attnum = k.attnum WHERE c.contype='p' AND c.conrelid='analytics.demand_forecast'::regclass;")"
+          echo "Forecast PK=${pk_columns}"
+          test "${pk_columns}" = "product_id,forecast_date,model_version,training_cutoff_date"
+
       - name: Generate and publish demand forecast
         run: |
           docker compose run --rm ml-forecast-generate
@@ -99,6 +107,28 @@ jobs:
             "SELECT COUNT(*) FROM analytics.demand_forecast;")"
           echo "Published forecast rows=${rows}"
           test "${rows}" = "210"
+
+      - name: Re-publish same forecast vintage idempotently
+        run: |
+          docker compose run --rm ml-forecast-generate
+          docker compose run --rm ml-forecast-publish
+          rows="$(docker compose exec -T postgres \
+            psql -U smartretail -d smartretail -tAc \
+            "SELECT COUNT(*) FROM analytics.demand_forecast;")"
+          echo "Forecast rows after rerun=${rows}"
+          test "${rows}" = "210"
+
+      - name: Run sales anomaly job
+        run: |
+          docker compose run --rm ml-sales-anomaly
+          staging_rows="$(docker compose exec -T postgres \
+            psql -U smartretail -d smartretail -tAc \
+            "SELECT COUNT(*) FROM analytics.sales_anomaly_staging;")"
+          anomaly_rows="$(docker compose exec -T postgres \
+            psql -U smartretail -d smartretail -tAc \
+            "SELECT COUNT(*) FROM analytics.sales_anomaly;")"
+          echo "Anomaly rows=${anomaly_rows} staging=${staging_rows}"
+          test "${staging_rows}" = "0"
 
       - name: Show ML diagnostics on failure
         if: failure()
