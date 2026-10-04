@@ -32,14 +32,19 @@ class PublishAnomalyAppTest(unittest.TestCase):
             ANOMALY_COLUMNS,
         )
 
-    @patch("publish_anomaly_app.replace_from_staging")
-    def test_main_publishes_anomaly_staging_transactionally(self, replace):
+    @patch("publish_anomaly_app.merge_from_staging")
+    def test_main_merges_anomaly_staging_non_destructively(self, merge):
         main()
 
-        replace.assert_called_once_with(
+        merge.assert_called_once_with(
             target_table="analytics.sales_anomaly",
             staging_table="analytics.sales_anomaly_staging",
             ordered_columns=ANOMALY_COLUMNS,
+            conflict_columns=[
+                "event_date",
+                "product_id",
+                "model_version",
+            ],
             pg_dsn="dbname=smartretail user=smartretail password=smartretail host=postgres port=5432",
         )
 
