@@ -1,8 +1,39 @@
 from pyspark.sql import DataFrame, Window
 from pyspark.sql import functions as F
 
-from ml_config import ANOMALY_STAGING_TABLE
+from ml_config import (
+    ANOMALY_HISTORY_WINDOW,
+    ANOMALY_MIN_HISTORY,
+    ANOMALY_STAGING_TABLE,
+    ANOMALY_THRESHOLD,
+)
 from serving_publish import stage_dataframe
+
+
+def select_temporally_valid_forecasts(forecast: DataFrame) -> DataFrame:
+    normalized = (
+        forecast
+        .withColumn("forecast_date", F.to_date("forecast_date"))
+        .withColumn("training_cutoff_date", F.to_date("training_cutoff_date"))
+        .withColumn("generated_at", F.to_timestamp("generated_at"))
+        .filter(F.col("training_cutoff_date") < F.col("forecast_date"))
+    )
+
+    selection_window = (
+        Window
+        .partitionBy("product_id", "forecast_date")
+        .orderBy(
+            F.col("training_cutoff_date").desc(),
+            F.col("generated_at").desc(),
+        )
+    )
+
+    return (
+        normalized
+        .withColumn("_forecast_rank", F.row_number().over(selection_window))
+        .filter(F.col("_forecast_rank") == 1)
+        .drop("_forecast_rank")
+    )
 
 
 def build_anomaly_candidates(
@@ -44,17 +75,23 @@ def build_anomaly_candidates(
     )
 
 
-def attach_residual_history(candidates: DataFrame) -> DataFrame:
-    history_window = (
+def attach_residual_history(
+    candidates: DataFrame,
+    history_window: int = ANOMALY_HISTORY_WINDOW,
+) -> DataFrame:
+    if history_window <= 0:
+        raise ValueError("history_window must be greater than zero")
+
+    residual_window = (
         Window
         .partitionBy("product_id")
-        .orderBy(F.col("event_date"))
-        .rowsBetween(Window.unboundedPreceding, -1)
+        .orderBy(F.to_date(F.col("event_date")))
+        .rowsBetween(-history_window, -1)
     )
 
     return candidates.withColumn(
         "historical_residuals",
-        F.collect_list(F.col("residual")).over(history_window),
+        F.collect_list(F.col("residual")).over(residual_window),
     )
 
 
@@ -72,10 +109,14 @@ def _median_array(column_name: str):
 
 def score_anomaly_candidates(
     candidates: DataFrame,
-    threshold: float = 3.5,
+    threshold: float = ANOMALY_THRESHOLD,
+    min_history: int = ANOMALY_MIN_HISTORY,
 ) -> DataFrame:
+    if min_history <= 0:
+        raise ValueError("min_history must be greater than zero")
+
     with_history = candidates.filter(
-        F.size(F.col("historical_residuals")) > 0
+        F.size(F.col("historical_residuals")) >= F.lit(min_history)
     )
 
     with_median = with_history.withColumn(
