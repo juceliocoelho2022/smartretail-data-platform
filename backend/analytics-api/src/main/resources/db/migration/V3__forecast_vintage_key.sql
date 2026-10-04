@@ -3,9 +3,4 @@ ALTER TABLE analytics.demand_forecast
 
 ALTER TABLE analytics.demand_forecast
     ADD CONSTRAINT demand_forecast_pkey
-    PRIMARY KEY (
-        product_id,
-        forecast_date,
-        model_version,
-        training_cutoff_date
-    );
+    PRIMARY KEY (product_id, forecast_date, model_version, training_cutoff_date);
