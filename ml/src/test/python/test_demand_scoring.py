@@ -40,9 +40,11 @@ class DemandScoringTest(unittest.TestCase):
     def setUpClass(cls):
         cls.spark = (
             SparkSession.builder
-            .master("local[2]")
+            .master("local[1]")
             .appName("demand-scoring-test")
             .config("spark.ui.enabled", "false")
+            .config("spark.sql.shuffle.partitions", "2")
+            .config("spark.default.parallelism", "2")
             .getOrCreate()
         )
         cls.spark.sparkContext.setLogLevel("WARN")
