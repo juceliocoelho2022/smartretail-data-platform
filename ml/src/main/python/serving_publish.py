@@ -90,3 +90,63 @@ def replace_from_staging(
         raise
     finally:
         connection.close()
+
+
+def merge_from_staging(
+    target_table: str,
+    staging_table: str,
+    ordered_columns: list[str],
+    conflict_columns: list[str],
+    pg_dsn: str,
+) -> None:
+    if not ordered_columns:
+        raise ValueError("ordered_columns must not be empty")
+    if not conflict_columns:
+        raise ValueError("conflict_columns must not be empty")
+
+    missing_conflicts = [
+        column for column in conflict_columns
+        if column not in ordered_columns
+    ]
+    if missing_conflicts:
+        raise ValueError("conflict columns must be present in ordered_columns")
+
+    update_columns = [
+        column for column in ordered_columns
+        if column not in conflict_columns
+    ]
+    if not update_columns:
+        raise ValueError("at least one non-conflict column is required")
+
+    target_sql = _quote_identifier(target_table)
+    staging_sql = _quote_identifier(staging_table)
+    columns_sql = ", ".join(
+        _quote_identifier(column)
+        for column in ordered_columns
+    )
+    conflict_sql = ", ".join(
+        _quote_identifier(column)
+        for column in conflict_columns
+    )
+    updates_sql = ", ".join(
+        f"{_quote_identifier(column)} = EXCLUDED.{_quote_identifier(column)}"
+        for column in update_columns
+    )
+
+    merge_sql = (
+        f"INSERT INTO {target_sql} ({columns_sql}) "
+        f"SELECT {columns_sql} FROM {staging_sql} "
+        f"ON CONFLICT ({conflict_sql}) DO UPDATE SET {updates_sql}"
+    )
+
+    connection = psycopg2.connect(pg_dsn)
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute(merge_sql)
+            cursor.execute(f"TRUNCATE TABLE {staging_sql}")
+        connection.commit()
+    except Exception:
+        connection.rollback()
+        raise
+    finally:
+        connection.close()
