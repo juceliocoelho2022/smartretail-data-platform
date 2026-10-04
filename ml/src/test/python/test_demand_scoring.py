@@ -54,20 +54,34 @@ class DemandScoringTest(unittest.TestCase):
         cls.spark.stop()
 
     def _history(self):
-        start = date(2026, 1, 1)
-        rows = []
-        for product_id, base in (("P001", 10.0), ("P002", 20.0)):
-            for offset in range(35):
-                rows.append(
-                    (
-                        product_id,
-                        start + timedelta(days=offset),
-                        base + float(offset % 7),
-                    )
-                )
-        return self.spark.createDataFrame(
-            rows,
-            ["productId", "eventDate", "unitsSold"],
+        products = self.spark.sql(
+            """
+            SELECT *
+            FROM VALUES
+                ('P001', CAST(10.0 AS DOUBLE)),
+                ('P002', CAST(20.0 AS DOUBLE))
+            AS products(productId, baseUnits)
+            """
+        )
+
+        offsets = self.spark.range(35).select(
+            F.col("id").cast("int").alias("offset")
+        )
+
+        return (
+            products
+            .crossJoin(offsets)
+            .select(
+                "productId",
+                F.date_add(
+                    F.lit("2026-01-01").cast("date"),
+                    F.col("offset"),
+                ).alias("eventDate"),
+                (
+                    F.col("baseUnits")
+                    + F.pmod(F.col("offset"), F.lit(7)).cast("double")
+                ).alias("unitsSold"),
+            )
         )
 
     def test_recursive_forecast_clamps_negative_predictions_and_builds_7_days(self):
