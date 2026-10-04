@@ -11,7 +11,11 @@ MAIN_PYTHON_DIR = os.path.abspath(
 )
 sys.path.insert(0, MAIN_PYTHON_DIR)
 
-from serving_publish import replace_from_staging, stage_dataframe
+from serving_publish import (
+    merge_from_staging,
+    replace_from_staging,
+    stage_dataframe,
+)
 
 
 class _Writer:
@@ -130,6 +134,107 @@ class ServingPublishTest(unittest.TestCase):
         connection.commit.assert_not_called()
         connection.rollback.assert_called_once_with()
         connection.close.assert_called_once_with()
+
+    @patch("serving_publish.psycopg2.connect")
+    def test_merge_from_staging_uses_on_conflict_without_delete(self, connect):
+        connection = MagicMock()
+        cursor = Mock()
+        connection.cursor.return_value.__enter__.return_value = cursor
+        connect.return_value = connection
+
+        merge_from_staging(
+            target_table="analytics.demand_forecast",
+            staging_table="analytics.demand_forecast_staging",
+            ordered_columns=[
+                "product_id",
+                "forecast_date",
+                "predicted_units",
+                "model_version",
+                "training_cutoff_date",
+            ],
+            conflict_columns=[
+                "product_id",
+                "forecast_date",
+                "model_version",
+                "training_cutoff_date",
+            ],
+            pg_dsn="dbname=smartretail user=smartretail host=postgres",
+        )
+
+        statements = [call.args[0] for call in cursor.execute.call_args_list]
+        self.assertEqual(2, len(statements))
+        self.assertNotIn("DELETE FROM", statements[0].upper())
+        self.assertIn("ON CONFLICT", statements[0].upper())
+        self.assertIn(
+            'ON CONFLICT ("product_id", "forecast_date", "model_version", "training_cutoff_date")',
+            statements[0],
+        )
+        self.assertIn(
+            '"predicted_units" = EXCLUDED."predicted_units"',
+            statements[0],
+        )
+        self.assertIn("TRUNCATE TABLE", statements[1].upper())
+        connection.commit.assert_called_once_with()
+        connection.rollback.assert_not_called()
+        connection.close.assert_called_once_with()
+
+    @patch("serving_publish.psycopg2.connect")
+    def test_merge_from_staging_rolls_back_on_sql_failure(self, connect):
+        connection = MagicMock()
+        cursor = Mock()
+        connection.cursor.return_value.__enter__.return_value = cursor
+        cursor.execute.side_effect = RuntimeError("merge failed")
+        connect.return_value = connection
+
+        with self.assertRaisesRegex(RuntimeError, "merge failed"):
+            merge_from_staging(
+                target_table="analytics.sales_anomaly",
+                staging_table="analytics.sales_anomaly_staging",
+                ordered_columns=["event_date", "product_id", "model_version", "is_anomaly"],
+                conflict_columns=["event_date", "product_id", "model_version"],
+                pg_dsn="dbname=smartretail user=smartretail host=postgres",
+            )
+
+        connection.commit.assert_not_called()
+        connection.rollback.assert_called_once_with()
+        connection.close.assert_called_once_with()
+
+    def test_merge_from_staging_rejects_invalid_column_contracts(self):
+        with self.assertRaisesRegex(ValueError, "ordered_columns must not be empty"):
+            merge_from_staging(
+                target_table="analytics.sales_anomaly",
+                staging_table="analytics.sales_anomaly_staging",
+                ordered_columns=[],
+                conflict_columns=["event_date"],
+                pg_dsn="dsn",
+            )
+
+        with self.assertRaisesRegex(ValueError, "conflict_columns must not be empty"):
+            merge_from_staging(
+                target_table="analytics.sales_anomaly",
+                staging_table="analytics.sales_anomaly_staging",
+                ordered_columns=["event_date"],
+                conflict_columns=[],
+                pg_dsn="dsn",
+            )
+
+        with self.assertRaisesRegex(ValueError, "conflict columns must be present"):
+            merge_from_staging(
+                target_table="analytics.sales_anomaly",
+                staging_table="analytics.sales_anomaly_staging",
+                ordered_columns=["event_date", "product_id"],
+                conflict_columns=["event_date", "model_version"],
+                pg_dsn="dsn",
+            )
+
+        with self.assertRaisesRegex(ValueError, "at least one non-conflict column"):
+            merge_from_staging(
+                target_table="analytics.sales_anomaly",
+                staging_table="analytics.sales_anomaly_staging",
+                ordered_columns=["event_date", "product_id"],
+                conflict_columns=["event_date", "product_id"],
+                pg_dsn="dsn",
+            )
 
 
 if __name__ == "__main__":
